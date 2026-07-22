@@ -1,0 +1,58 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Nav } from "@/components/Nav";
+import { PrivacyNotice } from "@/components/PrivacyNotice";
+import { getSessionUser } from "@/lib/auth";
+import { APP_NAME, APP_TAGLINE } from "@/lib/config";
+
+export default async function HomePage() {
+  const user = await getSessionUser();
+  if (user) redirect("/dashboard");
+
+  return (
+    <div className="min-h-screen">
+      <Nav user={null} />
+      <main className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <section className="space-y-6">
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-teal-800">
+            Academic research MVP
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl leading-tight text-slate-900 sm:text-5xl">
+            {APP_NAME}
+          </h1>
+          <p className="max-w-xl text-lg text-slate-700">{APP_TAGLINE}</p>
+          <p className="max-w-xl text-slate-600">
+            Upload surgical videos, record synchronized voiceovers or post-case
+            dictations, and return later to review saved narrations — all behind
+            authenticated access.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/signup"
+              className="rounded-md bg-teal-800 px-5 py-2.5 font-medium text-white hover:bg-teal-900"
+            >
+              Create account
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-md border border-slate-300 bg-white/70 px-5 py-2.5 font-medium text-slate-800 hover:bg-white"
+            >
+              Log in
+            </Link>
+          </div>
+        </section>
+        <div className="space-y-4">
+          <PrivacyNotice />
+          <div className="rounded-lg border border-slate-200 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
+            <ol className="list-decimal space-y-2 pl-4">
+              <li>Sign in and upload a video with case metadata.</li>
+              <li>Choose synchronized voiceover or post-video dictation.</li>
+              <li>Preview, re-record if needed, then save draft or submit.</li>
+              <li>Replay saved narrations from the library anytime.</li>
+            </ol>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

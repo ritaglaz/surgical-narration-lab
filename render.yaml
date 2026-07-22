@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: surgical-narration-lab
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: STORAGE_BACKEND
+        value: local
+      - key: DATA_DIR
+        value: ./data
+      - key: NEXT_PUBLIC_APP_NAME
+        value: Surgical Narration Lab
+      - key: NEXT_PUBLIC_APP_TAGLINE
+        value: Research platform for surgical video narration
