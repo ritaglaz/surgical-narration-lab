@@ -2,34 +2,22 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/config";
 
-const protectedPrefixes = ["/dashboard", "/videos", "/api/videos", "/api/narrations", "/api/media"];
-
+/**
+ * Protect page routes only.
+ * Do NOT run middleware on /api/videos or /api/narrations — Next.js middleware
+ * can break multipart/form-data bodies and cause "Invalid multipart form data".
+ * Those API routes already call getSessionUser() themselves.
+ */
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  const needsAuth = protectedPrefixes.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  );
-  if (!needsAuth) return NextResponse.next();
-
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
-  }
-  return NextResponse.next();
+  if (token) return NextResponse.next();
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.searchParams.set("next", req.nextUrl.pathname);
+  return NextResponse.redirect(url);
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/videos/:path*",
-    "/api/videos/:path*",
-    "/api/narrations/:path*",
-    "/api/media/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/videos/:path*"],
 };

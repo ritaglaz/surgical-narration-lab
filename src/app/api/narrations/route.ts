@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
   let form: FormData;
   try {
     form = await req.formData();
-  } catch {
-    return jsonError("Invalid multipart form data");
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "parse failed";
+    return jsonError(`Invalid multipart form data (${detail})`);
   }
 
   const video_id = String(form.get("video_id") || "");

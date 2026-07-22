@@ -179,6 +179,8 @@ function uploadWithProgress(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/videos");
+    // Let the browser set multipart boundary. Do not set Content-Type manually.
+    xhr.withCredentials = true;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         onProgress(Math.round((e.loaded / e.total) * 100));
@@ -186,14 +188,18 @@ function uploadWithProgress(
     };
     xhr.onload = () => {
       try {
-        const data = JSON.parse(xhr.responseText);
+        const data = JSON.parse(xhr.responseText || "{}");
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(data.video.id);
         } else {
-          reject(new Error(data.error || "Upload failed"));
+          reject(new Error(data.error || `Upload failed (${xhr.status})`));
         }
       } catch {
-        reject(new Error("Upload failed"));
+        reject(
+          new Error(
+            `Upload failed (${xhr.status}). Server returned a non-JSON response.`
+          )
+        );
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));

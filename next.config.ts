@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "550mb",
     },
+    // Allow large multipart uploads through Next's proxy/middleware layer
+    middlewareClientMaxBodySize: "550mb",
   },
 };
 

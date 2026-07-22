@@ -34,11 +34,21 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
 
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("multipart/form-data")) {
+    return jsonError(
+      `Expected multipart upload, got Content-Type: ${contentType || "(missing)"}`
+    );
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
-  } catch {
-    return jsonError("Invalid multipart form data");
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "parse failed";
+    return jsonError(
+      `Invalid multipart form data (${detail}). Try a smaller MP4/WebM file, or redeploy after the latest upload fix.`
+    );
   }
 
   const title = String(form.get("title") || "").trim();
