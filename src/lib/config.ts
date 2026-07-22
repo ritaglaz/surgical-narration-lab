@@ -10,9 +10,9 @@ export const APP_TAGLINE =
   process.env.NEXT_PUBLIC_APP_TAGLINE ||
   "Research platform for surgical video narration";
 
-/** Max upload size for videos (bytes). Default 80 MB (safer for free hosting). */
+/** Max upload size for videos (bytes). Default 300 MB. */
 export const MAX_VIDEO_BYTES = Number(
-  process.env.MAX_VIDEO_BYTES || 80 * 1024 * 1024
+  process.env.MAX_VIDEO_BYTES || 300 * 1024 * 1024
 );
 
 /** Max upload size for audio narrations (bytes). Default 100 MB. */
