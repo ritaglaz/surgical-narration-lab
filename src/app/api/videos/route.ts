@@ -8,9 +8,13 @@ import {
 } from "@/lib/config";
 import { createVideo, listVideos, getDistinctProcedureTypes } from "@/lib/db";
 import { extensionForMime } from "@/lib/format";
-import { saveFile } from "@/lib/storage";
+import { parseMultipartToDisk } from "@/lib/multipart";
+import { deleteFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+/** Allow longer uploads on hosted platforms */
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -34,73 +38,73 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
 
-  const contentType = req.headers.get("content-type") || "";
-  if (!contentType.toLowerCase().includes("multipart/form-data")) {
-    return jsonError(
-      `Expected multipart upload, got Content-Type: ${contentType || "(missing)"}`
-    );
-  }
+  const id = randomUUID();
 
-  let form: FormData;
+  let parsed;
   try {
-    form = await req.formData();
+    parsed = await parseMultipartToDisk(req, {
+      fileField: "file",
+      maxFileBytes: MAX_VIDEO_BYTES,
+      buildStoragePath: ({ filename, mimeType }) => {
+        const nameLower = filename.toLowerCase();
+        const extOk = ALLOWED_VIDEO_EXTENSIONS.some((ext) =>
+          nameLower.endsWith(ext)
+        );
+        const ext = extensionForMime(
+          mimeType,
+          extOk ? nameLower.slice(nameLower.lastIndexOf(".")) : ".mp4"
+        );
+        return `videos/${user.id}/${id}${ext}`;
+      },
+    });
   } catch (err) {
-    const detail = err instanceof Error ? err.message : "parse failed";
-    return jsonError(
-      `Invalid multipart form data (${detail}). Try a smaller MP4/WebM file, or redeploy after the latest upload fix.`
-    );
+    const message = err instanceof Error ? err.message : "Upload parse failed";
+    console.error("[upload]", message);
+    return jsonError(message, 400);
   }
 
-  const title = String(form.get("title") || "").trim();
-  const procedure_type = String(form.get("procedure_type") || "").trim();
-  const description = String(form.get("description") || "").trim() || null;
-  const case_id = String(form.get("case_id") || "").trim() || null;
-  const durationRaw = form.get("duration");
+  const title = String(parsed.fields.title || "").trim();
+  const procedure_type = String(parsed.fields.procedure_type || "").trim();
+  const description = String(parsed.fields.description || "").trim() || null;
+  const case_id = String(parsed.fields.case_id || "").trim() || null;
+  const durationRaw = parsed.fields.duration;
   const duration =
-    durationRaw != null && String(durationRaw) !== ""
-      ? Number(durationRaw)
-      : null;
-  const file = form.get("file");
+    durationRaw != null && durationRaw !== "" ? Number(durationRaw) : null;
 
   if (!title || !procedure_type) {
+    if (parsed.file) deleteFile(parsed.file.storagePath);
     return jsonError("Title and procedure type are required");
   }
-  if (!(file instanceof File)) {
+  if (!parsed.file || parsed.file.size <= 0) {
+    if (parsed.file) deleteFile(parsed.file.storagePath);
     return jsonError("A video file is required");
   }
-  if (file.size <= 0) return jsonError("Uploaded file is empty");
-  if (file.size > MAX_VIDEO_BYTES) {
-    return jsonError(
-      `Video exceeds maximum size of ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB`
-    );
-  }
 
-  const mime = file.type || "application/octet-stream";
-  const nameLower = file.name.toLowerCase();
+  const mime = parsed.file.mimeType || "application/octet-stream";
+  const nameLower = parsed.file.filename.toLowerCase();
   const extOk = ALLOWED_VIDEO_EXTENSIONS.some((ext) => nameLower.endsWith(ext));
   const typeOk = (ALLOWED_VIDEO_TYPES as readonly string[]).includes(mime);
 
   if (!extOk && !typeOk) {
+    deleteFile(parsed.file.storagePath);
     return jsonError("Unsupported video format. Use MP4, WebM, or MOV.");
   }
 
-  const id = randomUUID();
-  const ext = extensionForMime(mime, extOk ? nameLower.slice(nameLower.lastIndexOf(".")) : ".mp4");
-  const storagePath = `videos/${user.id}/${id}${ext}`;
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await saveFile(storagePath, buffer);
-
-  const video = createVideo({
-    id,
-    title,
-    procedure_type,
-    description,
-    case_id,
-    video_storage_path: storagePath,
-    duration: Number.isFinite(duration) ? duration : null,
-    uploaded_by: user.id,
-  });
-
-  return NextResponse.json({ video }, { status: 201 });
+  try {
+    const video = createVideo({
+      id,
+      title,
+      procedure_type,
+      description,
+      case_id,
+      video_storage_path: parsed.file.storagePath,
+      duration: Number.isFinite(duration as number) ? duration : null,
+      uploaded_by: user.id,
+    });
+    return NextResponse.json({ video }, { status: 201 });
+  } catch (err) {
+    deleteFile(parsed.file.storagePath);
+    console.error("[upload] db error", err);
+    return jsonError("Failed to save video metadata", 500);
+  }
 }

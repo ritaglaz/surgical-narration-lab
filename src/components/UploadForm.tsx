@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PrivacyNotice } from "./PrivacyNotice";
 
-const MAX_MB = 500;
+const MAX_MB = 80;
 
 export function UploadForm() {
   const router = useRouter();
