@@ -28,7 +28,7 @@ Copy these from your local `.env.local` (do not paste secrets into chat):
 ## Invite emails (optional but recommended)
 | Key | Value |
 | --- | --- |
-| `NEXT_PUBLIC_APP_URL` | `https://surgical-narration-lab.onrender.com` |
+| `NEXT_PUBLIC_APP_URL` | `https://surgical-operative-note-lab.onrender.com` |
 | `RESEND_API_KEY` | from [resend.com](https://resend.com) |
 | `EMAIL_FROM` | verified sender, e.g. `Surgical Operative Note Lab <you@yourdomain.com>` |
 

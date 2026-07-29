@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: surgical-narration-lab
+    name: surgical-operative-note-lab
     runtime: node
     plan: free
     region: oregon
