@@ -1,4 +1,4 @@
-# Surgical Narration
+# Surgical Operative Note Lab
 
 Research MVP for uploading surgical videos and recording narrations (synchronized voiceover or post-video dictation). Inspired by the *workflow* of surgical voiceover tools — not a visual or branding copy of any existing product.
 

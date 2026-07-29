@@ -4,11 +4,11 @@
  */
 
 export const APP_NAME =
-  process.env.NEXT_PUBLIC_APP_NAME || "Surgical Narration";
+  process.env.NEXT_PUBLIC_APP_NAME || "Surgical Operative Note Lab";
 
 export const APP_TAGLINE =
   process.env.NEXT_PUBLIC_APP_TAGLINE ||
-  "Research platform for surgical video narration";
+  "Research platform for surgical operative note dictation";
 
 /** Max upload size for videos (bytes). Default 300 MB. */
 export const MAX_VIDEO_BYTES = Number(
@@ -62,7 +62,7 @@ export const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 30);
  * Shown before/after the surgical video. Narrators record dictation against this brief.
  */
 export const DICTATION_PROMPT =
-  "You are about to view a 10-minute segment of a laparoscopic cholecystectomy surgical video. Please pay close attention and watch the video in its entirety. After viewing the surgical video, you will be prompted to record a narrative operative dictation. Record the dictation as if you have just completed the operation and are preparing the operative note for inclusion in the electronic medical record. You will also be asked what is the next step of the operation to be performed.";
+  "You are about to view a 10-minute segment of a laparoscopic cholecystectomy surgical video. Please pay close attention and watch the video in its entirety. After viewing the surgical video, you will be prompted to record an operative dictation. Record the dictation as if you have just completed the operation and are preparing the operative note for inclusion in the electronic medical record. You will also be asked what is the next step of the operation to be performed.";
 
 /**
  * Comma-separated admin emails that always get full admin access.
