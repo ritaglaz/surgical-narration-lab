@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DICTATION_PROMPT } from "@/lib/config";
 import { formatDuration } from "@/lib/format";
 import type { Narration, Video } from "@/lib/types";
 
@@ -43,7 +44,7 @@ export function NarrationWorkspace({
   const [level, setLevel] = useState(0);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [notes, setNotes] = useState("");
+  const [nextStep, setNextStep] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(video.duration || 0);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -245,6 +246,12 @@ export function NarrationWorkspace({
       setError("Record audio before saving.");
       return;
     }
+    if (status === "submitted" && !nextStep.trim()) {
+      setError(
+        "Please describe the next step of the operation before submitting."
+      );
+      return;
+    }
     if (saving) return;
     setSaving(true);
     setError("");
@@ -254,7 +261,7 @@ export function NarrationWorkspace({
       form.append("video_id", video.id);
       form.append("narration_mode", "dictation");
       form.append("status", status);
-      form.append("notes", notes);
+      form.append("next_step", nextStep.trim());
       form.append("video_start_timestamp", "0");
       form.append("recording_duration", String(recSeconds));
       if (editingId) form.append("narration_id", editingId);
@@ -271,6 +278,7 @@ export function NarrationWorkspace({
       if (!res.ok) throw new Error(data.error || "Save failed");
 
       setEditingId(data.narration.id);
+      if (data.narration.next_step) setNextStep(data.narration.next_step);
       setMessage(
         status === "submitted"
           ? "Dictation submitted. Thank you."
@@ -320,11 +328,14 @@ export function NarrationWorkspace({
           {video.procedure_type}
           {video.case_id ? ` · Case ${video.case_id}` : ""}
         </p>
-        <p className="mt-2 text-sm text-slate-600">
-          Watch the full video. When it ends, a dictation recorder will open
-          automatically so you can record your commentary.
-        </p>
       </div>
+
+      <aside className="rounded-lg border border-slate-200 bg-white/80 px-4 py-4 text-sm leading-relaxed text-slate-700 shadow-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Instructions
+        </h2>
+        <p className="mt-2 whitespace-pre-wrap">{DICTATION_PROMPT}</p>
+      </aside>
 
       {videoError && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
@@ -494,17 +505,18 @@ export function NarrationWorkspace({
           aria-modal="true"
           aria-labelledby="dictation-title"
         >
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2
                   id="dictation-title"
                   className="font-[family-name:var(--font-display)] text-2xl text-slate-900"
                 >
-                  Record dictation
+                  Operative dictation
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Speak your post-video commentary. Pause or re-record anytime.
+                  Record as if you just completed the operation and are writing
+                  the operative note for the medical record.
                 </p>
               </div>
               <button
@@ -519,6 +531,10 @@ export function NarrationWorkspace({
               >
                 Close
               </button>
+            </div>
+
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-relaxed text-slate-700">
+              {DICTATION_PROMPT}
             </div>
 
             {error && (
@@ -645,12 +661,14 @@ export function NarrationWorkspace({
 
             <label className="mt-4 block space-y-1.5 border-t border-slate-100 pt-4">
               <span className="text-sm font-medium text-slate-700">
-                Notes (optional)
+                What is the next step of the operation to be performed?
               </span>
               <textarea
-                rows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                required
+                value={nextStep}
+                onChange={(e) => setNextStep(e.target.value)}
+                placeholder="Describe the next operative step…"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-teal-700/30 focus:ring-2"
               />
             </label>
@@ -666,7 +684,7 @@ export function NarrationWorkspace({
               </button>
               <button
                 type="button"
-                disabled={saving || (!blob && !editingId)}
+                disabled={saving || (!blob && !editingId) || !nextStep.trim()}
                 onClick={() => save("submitted")}
                 className="rounded-md bg-teal-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-900 disabled:opacity-50"
               >

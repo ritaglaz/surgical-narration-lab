@@ -33,6 +33,7 @@ export interface Narration {
   recording_duration: number | null;
   video_start_timestamp: number;
   notes: string | null;
+  next_step: string | null;
   status: NarrationStatus;
   created_at: string;
   updated_at: string;

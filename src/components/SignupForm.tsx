@@ -4,8 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-/** Bootstrap-only: creates the first admin (or claims an existing email as admin). */
-export function SignupForm() {
+/** Creates an admin account (bootstrap or ADMIN_EMAILS allowlist). */
+export function SignupForm({
+  allowlistedMode = false,
+}: {
+  allowlistedMode?: boolean;
+}) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -41,9 +45,19 @@ export function SignupForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-        Create the <strong>admin</strong> account that uploads videos and sends
-        invite links. Narrators do not sign up — they open the link you send
-        them.
+        {allowlistedMode ? (
+          <>
+            Use your authorized admin email. All admins share the same library,
+            upload, and invite access. Narrators do not sign up — they open the
+            invite link you send them.
+          </>
+        ) : (
+          <>
+            Create an <strong>admin</strong> account that uploads videos and
+            sends invite links. Narrators do not sign up — they open the link
+            you send them.
+          </>
+        )}
       </p>
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">

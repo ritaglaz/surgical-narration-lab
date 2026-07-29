@@ -57,3 +57,31 @@ export function getAppBaseUrl(fallbackOrigin?: string): string {
 
 /** Invite links expire after this many days. */
 export const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 30);
+
+/**
+ * Shown before/after the surgical video. Narrators record dictation against this brief.
+ */
+export const DICTATION_PROMPT =
+  "You are about to view a 10-minute segment of a laparoscopic cholecystectomy surgical video. Please pay close attention and watch the video in its entirety. After viewing the surgical video, you will be prompted to record a narrative operative dictation. Record the dictation as if you have just completed the operation and are preparing the operative note for inclusion in the electronic medical record. You will also be asked what is the next step of the operation to be performed.";
+
+/**
+ * Comma-separated admin emails that always get full admin access.
+ * Example: ritaglaz@buffalo.edu,pseger@buffalo.edu
+ */
+export function getAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAllowlistedAdminEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+  return getAdminEmails().includes(normalized);
+}
+
+/** True when additional authorized admins can still register. */
+export function hasAllowlistedAdmins(): boolean {
+  return getAdminEmails().length > 0;
+}

@@ -108,6 +108,22 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token);
     CREATE INDEX IF NOT EXISTS idx_invites_email ON invites(email);
   `);
+
+  ensureColumn(db, "narrations", "next_step", "TEXT");
+}
+
+function ensureColumn(
+  db: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+) {
+  const cols = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 export function createProfile(input: {
@@ -273,15 +289,16 @@ export function createNarration(input: {
   recording_duration?: number | null;
   video_start_timestamp?: number;
   notes?: string | null;
+  next_step?: string | null;
   status?: NarrationStatus;
 }): Narration {
   getDb()
     .prepare(
       `INSERT INTO narrations
        (id, video_id, user_id, narration_mode, audio_storage_path, recording_duration,
-        video_start_timestamp, notes, status)
+        video_start_timestamp, notes, next_step, status)
        VALUES (@id, @video_id, @user_id, @narration_mode, @audio_storage_path,
-               @recording_duration, @video_start_timestamp, @notes, @status)`
+               @recording_duration, @video_start_timestamp, @notes, @next_step, @status)`
     )
     .run({
       id: input.id,
@@ -292,6 +309,7 @@ export function createNarration(input: {
       recording_duration: input.recording_duration ?? null,
       video_start_timestamp: input.video_start_timestamp ?? 0,
       notes: input.notes ?? null,
+      next_step: input.next_step ?? null,
       status: input.status ?? "draft",
     });
   return getNarrationById(input.id)!;
@@ -327,6 +345,7 @@ export function updateNarration(
     recording_duration: number | null;
     video_start_timestamp: number;
     notes: string | null;
+    next_step: string | null;
     status: NarrationStatus;
     narration_mode: NarrationMode;
   }>
@@ -348,6 +367,8 @@ export function updateNarration(
         ? patch.video_start_timestamp
         : current.video_start_timestamp,
     notes: patch.notes !== undefined ? patch.notes : current.notes,
+    next_step:
+      patch.next_step !== undefined ? patch.next_step : current.next_step,
     status: patch.status !== undefined ? patch.status : current.status,
     narration_mode:
       patch.narration_mode !== undefined
@@ -362,6 +383,7 @@ export function updateNarration(
         recording_duration = @recording_duration,
         video_start_timestamp = @video_start_timestamp,
         notes = @notes,
+        next_step = @next_step,
         status = @status,
         narration_mode = @narration_mode,
         updated_at = datetime('now')

@@ -2,7 +2,11 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, SESSION_DAYS } from "./config";
+import {
+  SESSION_COOKIE,
+  SESSION_DAYS,
+  isAllowlistedAdminEmail,
+} from "./config";
 import {
   assignVideoToUser,
   canBootstrapAdmin,
@@ -17,6 +21,29 @@ import {
 } from "./db";
 import type { SessionUser, UserRole } from "./types";
 import { randomUUID } from "crypto";
+
+function ensureAdminRoleIfAllowlisted(profile: {
+  id: string;
+  email: string;
+  display_name: string;
+  role: UserRole;
+}): SessionUser {
+  if (isAllowlistedAdminEmail(profile.email) && profile.role !== "admin") {
+    setProfileRole(profile.id, "admin");
+    return {
+      id: profile.id,
+      email: profile.email,
+      display_name: profile.display_name,
+      role: "admin",
+    };
+  }
+  return {
+    id: profile.id,
+    email: profile.email,
+    display_name: profile.display_name,
+    role: profile.role,
+  };
+}
 
 /** Placeholder hash for invite-only narrators (cannot log in with a password). */
 const INVITE_ONLY_PASSWORD_PLACEHOLDER = "";
@@ -99,12 +126,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!session) return null;
   const profile = getProfileById(session.id);
   if (!profile) return null;
-  return {
-    id: profile.id,
-    email: profile.email,
-    display_name: profile.display_name,
-    role: profile.role,
-  };
+  return ensureAdminRoleIfAllowlisted(profile);
 }
 
 export async function requireUser(): Promise<SessionUser> {
@@ -129,8 +151,8 @@ export class AuthError extends Error {
 }
 
 /**
- * Creates or claims the first admin account.
- * Allowed only while no admin exists (even if invite-only narrators already exist).
+ * Creates or claims an admin account.
+ * Allowed when no admin exists yet, or when the email is in ADMIN_EMAILS.
  */
 export async function signupUser(input: {
   email: string;
@@ -142,9 +164,10 @@ export async function signupUser(input: {
     throw new AuthError("Valid email and password (min 8 characters) required");
   }
 
-  if (!canBootstrapAdmin()) {
+  const allowlisted = isAllowlistedAdminEmail(email);
+  if (!canBootstrapAdmin() && !allowlisted) {
     throw new AuthError(
-      "An admin already exists. Log in, or ask an admin to invite you.",
+      "Admin signup is closed. Log in with an authorized admin email, or ask an admin to invite you as a narrator.",
       403
     );
   }
@@ -158,12 +181,7 @@ export async function signupUser(input: {
     setProfileRole(existing.id, "admin");
     if (display_name) updateProfileDisplayName(existing.id, display_name);
     const profile = getProfileById(existing.id)!;
-    return {
-      id: profile.id,
-      email: profile.email,
-      display_name: profile.display_name,
-      role: profile.role,
-    };
+    return ensureAdminRoleIfAllowlisted(profile);
   }
 
   const id = randomUUID();
@@ -175,12 +193,7 @@ export async function signupUser(input: {
     role: "admin",
   });
 
-  return {
-    id: profile.id,
-    email: profile.email,
-    display_name: profile.display_name,
-    role: profile.role,
-  };
+  return ensureAdminRoleIfAllowlisted(profile);
 }
 
 /**
@@ -257,12 +270,7 @@ export async function loginUser(
   }
   const ok = await verifyPassword(password, profile.password_hash);
   if (!ok) throw new AuthError("Invalid email or password");
-  return {
-    id: profile.id,
-    email: profile.email,
-    display_name: profile.display_name,
-    role: profile.role,
-  };
+  return ensureAdminRoleIfAllowlisted(profile);
 }
 
 export function jsonError(message: string, status = 400) {

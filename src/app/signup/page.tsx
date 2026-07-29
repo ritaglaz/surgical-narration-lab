@@ -1,6 +1,7 @@
 import { Nav } from "@/components/Nav";
 import { SignupForm } from "@/components/SignupForm";
 import { getSessionUser } from "@/lib/auth";
+import { hasAllowlistedAdmins } from "@/lib/config";
 import { canBootstrapAdmin } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -9,7 +10,10 @@ export default async function SignupPage() {
   const user = await getSessionUser();
   if (user) redirect("/dashboard");
 
-  if (!canBootstrapAdmin()) {
+  const bootstrap = canBootstrapAdmin();
+  const allowlisted = hasAllowlistedAdmins();
+
+  if (!bootstrap && !allowlisted) {
     return (
       <div className="min-h-screen">
         <Nav user={null} />
@@ -37,13 +41,15 @@ export default async function SignupPage() {
       <Nav user={null} />
       <main className="mx-auto max-w-md px-4 py-12 sm:px-6">
         <h1 className="font-[family-name:var(--font-display)] text-3xl text-slate-900">
-          First-time admin setup
+          {bootstrap ? "First-time admin setup" : "Admin account setup"}
         </h1>
         <p className="mt-2 text-slate-600">
-          Create the admin account that uploads videos and invites narrators.
+          {bootstrap
+            ? "Create an admin account that uploads videos and invites narrators."
+            : "Authorized admin emails can create their account here. You will have the same access as other admins."}
         </p>
         <div className="mt-6 rounded-lg border border-slate-200 bg-white/80 p-6 shadow-sm">
-          <SignupForm />
+          <SignupForm allowlistedMode={!bootstrap && allowlisted} />
         </div>
       </main>
     </div>

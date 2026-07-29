@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
   const status = (String(form.get("status") || "draft") ||
     "draft") as NarrationStatus;
   const notes = String(form.get("notes") || "").trim() || null;
+  const next_step = String(form.get("next_step") || "").trim() || null;
   const video_start_timestamp = Number(form.get("video_start_timestamp") || 0);
   const recording_durationRaw = form.get("recording_duration");
   const recording_duration =
@@ -50,6 +51,11 @@ export async function POST(req: NextRequest) {
   }
   if (!["draft", "submitted"].includes(status)) {
     return jsonError("status must be draft or submitted");
+  }
+  if (status === "submitted" && !next_step) {
+    return jsonError(
+      "Please describe the next step of the operation before submitting"
+    );
   }
 
   const video = getVideoById(video_id);
@@ -103,6 +109,7 @@ export async function POST(req: NextRequest) {
         ? video_start_timestamp
         : 0,
       notes,
+      next_step,
       status,
       narration_mode,
     });
@@ -135,6 +142,7 @@ export async function POST(req: NextRequest) {
       ? video_start_timestamp
       : 0,
     notes,
+    next_step,
     status,
   });
 

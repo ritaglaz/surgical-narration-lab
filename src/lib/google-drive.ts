@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
-import { getDataDir } from "./config";
+import { DICTATION_PROMPT, getDataDir } from "./config";
 import {
   getProfileById,
   getVideoById,
@@ -259,6 +259,7 @@ export async function syncNarrationToDrive(
     body: JSON.stringify(
       {
         ...narration,
+        dictation_prompt: DICTATION_PROMPT,
         narrator_name: narrator?.display_name || null,
         narrator_email: narrator?.email || null,
         narrator_role: narrator?.role || null,
@@ -266,6 +267,7 @@ export async function syncNarrationToDrive(
         video_title: video?.title || null,
         video_procedure_type: video?.procedure_type || null,
         video_case_id: video?.case_id || null,
+        next_step: narration.next_step || null,
         drive_audio_file_id: audioDriveId || null,
         synced_at: new Date().toISOString(),
       },

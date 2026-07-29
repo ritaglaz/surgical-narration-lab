@@ -36,7 +36,7 @@ export default async function HomePage() {
               href="/signup"
               className="rounded-md border border-slate-300 bg-white/70 px-5 py-2.5 font-medium text-slate-800 hover:bg-white"
             >
-              First-time admin setup
+              Admin setup
             </Link>
           </div>
         </section>

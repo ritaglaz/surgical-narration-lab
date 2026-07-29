@@ -12,6 +12,7 @@ In Render → your Web Service → **Environment**, add/update these.
 | `NEXT_PUBLIC_APP_NAME` | `Surgical Narration` |
 | `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical video narration` |
 | `MAX_VIDEO_BYTES` | `314572800` |
+| `ADMIN_EMAILS` | `ritaglaz@buffalo.edu,pseger@buffalo.edu` |
 
 ## Google Drive sync (audio + JSON only)
 Copy these from your local `.env.local` (do not paste secrets into chat):
