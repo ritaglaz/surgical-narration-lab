@@ -1,6 +1,5 @@
 import { Nav } from "@/components/Nav";
 import { SignupForm } from "@/components/SignupForm";
-import { PrivacyNotice } from "@/components/PrivacyNotice";
 import { getSessionUser } from "@/lib/auth";
 import { canBootstrapAdmin } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -43,9 +42,6 @@ export default async function SignupPage() {
         <p className="mt-2 text-slate-600">
           Create the admin account that uploads videos and invites narrators.
         </p>
-        <div className="mt-6">
-          <PrivacyNotice compact />
-        </div>
         <div className="mt-6 rounded-lg border border-slate-200 bg-white/80 p-6 shadow-sm">
           <SignupForm />
         </div>

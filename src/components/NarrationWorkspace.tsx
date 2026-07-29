@@ -477,7 +477,7 @@ export function NarrationWorkspace({
                 </div>
                 <Link
                   href={`/videos/${video.id}/playback/${n.id}`}
-                  className="inline-flex rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900"
+                  className="inline-flex rounded-md bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-900"
                 >
                   Open playback
                 </Link>

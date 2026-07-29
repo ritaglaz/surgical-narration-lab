@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Nav } from "@/components/Nav";
-import { PrivacyNotice } from "@/components/PrivacyNotice";
 import { getSessionUser } from "@/lib/auth";
 import { APP_NAME, APP_TAGLINE } from "@/lib/config";
 
@@ -41,16 +40,13 @@ export default async function HomePage() {
             </Link>
           </div>
         </section>
-        <div className="space-y-4">
-          <PrivacyNotice />
-          <div className="rounded-lg border border-slate-200 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
-            <ol className="list-decimal space-y-2 pl-4">
-              <li>Admin uploads a video with case metadata.</li>
-              <li>Admin invites a narrator and assigns specific videos.</li>
-              <li>Invitee opens the link, watches the video, then dictation pops up.</li>
-              <li>Audio + JSON (with user info) sync to Google Drive.</li>
-            </ol>
-          </div>
+        <div className="rounded-lg border border-slate-200 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
+          <ol className="list-decimal space-y-2 pl-4">
+            <li>Admin uploads a video with case metadata.</li>
+            <li>Admin invites a narrator and assigns specific videos.</li>
+            <li>Invitee opens the link, watches the video, then dictation pops up.</li>
+            <li>Audio + JSON (with user info) sync to Google Drive.</li>
+          </ol>
         </div>
       </main>
     </div>

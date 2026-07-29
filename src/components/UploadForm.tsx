@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PrivacyNotice } from "./PrivacyNotice";
 
 const MAX_MB = 300;
 
@@ -79,7 +78,6 @@ export function UploadForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <PrivacyNotice compact />
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}

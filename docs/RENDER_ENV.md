@@ -9,7 +9,7 @@ In Render → your Web Service → **Environment**, add/update these.
 | `NODE_VERSION` | `22` |
 | `STORAGE_BACKEND` | `local` |
 | `DATA_DIR` | `./data` |
-| `NEXT_PUBLIC_APP_NAME` | `Surgical Narration Lab` |
+| `NEXT_PUBLIC_APP_NAME` | `Surgical Narration` |
 | `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical video narration` |
 | `MAX_VIDEO_BYTES` | `314572800` |
 
@@ -29,7 +29,7 @@ Copy these from your local `.env.local` (do not paste secrets into chat):
 | --- | --- |
 | `NEXT_PUBLIC_APP_URL` | `https://surgical-narration-lab.onrender.com` |
 | `RESEND_API_KEY` | from [resend.com](https://resend.com) |
-| `EMAIL_FROM` | verified sender, e.g. `Surgical Narration Lab <you@yourdomain.com>` |
+| `EMAIL_FROM` | verified sender, e.g. `Surgical Narration <you@yourdomain.com>` |
 
 Without Resend, admins can still create invites and **copy the link** from the Invite page.
 

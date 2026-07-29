@@ -4,7 +4,7 @@
  */
 
 export const APP_NAME =
-  process.env.NEXT_PUBLIC_APP_NAME || "Surgical Narration Lab";
+  process.env.NEXT_PUBLIC_APP_NAME || "Surgical Narration";
 
 export const APP_TAGLINE =
   process.env.NEXT_PUBLIC_APP_TAGLINE ||
