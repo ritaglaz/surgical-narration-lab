@@ -101,6 +101,12 @@ export async function POST(req: NextRequest) {
       duration: Number.isFinite(duration as number) ? duration : null,
       uploaded_by: user.id,
     });
+
+    const { queueDriveSync, syncVideoMetadataToDrive } = await import(
+      "@/lib/google-drive"
+    );
+    queueDriveSync(() => syncVideoMetadataToDrive(video));
+
     return NextResponse.json({ video }, { status: 201 });
   } catch (err) {
     deleteFile(parsed.file.storagePath);

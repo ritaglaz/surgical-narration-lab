@@ -1,0 +1,33 @@
+# Render environment variables checklist
+
+In Render → your Web Service → **Environment**, add/update these.
+
+## Required app vars
+| Key | Value |
+| --- | --- |
+| `AUTH_SECRET` | long random string (keep existing if already set) |
+| `NODE_VERSION` | `22` |
+| `STORAGE_BACKEND` | `local` |
+| `DATA_DIR` | `./data` |
+| `NEXT_PUBLIC_APP_NAME` | `Surgical Narration Lab` |
+| `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical video narration` |
+| `MAX_VIDEO_BYTES` | `314572800` |
+
+## Google Drive sync (audio + JSON only)
+Copy these from your local `.env.local` (do not paste secrets into chat):
+
+| Key | Notes |
+| --- | --- |
+| `GOOGLE_DRIVE_SYNC` | `true` |
+| `GOOGLE_DRIVE_FOLDER_ID` | `1OY4j_Eft-PydQ0gf4qJ8iSEoaRwYGoGC` |
+| `GOOGLE_OAUTH_CLIENT_ID` | from `.env.local` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | from `.env.local` |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | from `.env.local` |
+
+## After saving env vars
+1. **Manual Deploy** → **Deploy latest commit** (or wait for auto-deploy)
+2. Confirm the latest GitHub commit includes Google Drive sync code
+3. Save a narration on the live site and check the **Surgical Vision** Drive folder
+
+## Important limitation
+Render free disk is still ephemeral for **video files**. Drive sync backs up **audio + JSON**. For durable video storage later, use Supabase Storage.

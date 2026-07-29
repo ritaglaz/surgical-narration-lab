@@ -101,6 +101,14 @@ export async function POST(req: NextRequest) {
       status,
       narration_mode,
     });
+
+    if (updated) {
+      const { queueDriveSync, syncNarrationToDrive } = await import(
+        "@/lib/google-drive"
+      );
+      queueDriveSync(() => syncNarrationToDrive(updated));
+    }
+
     return NextResponse.json({ narration: updated });
   }
 
@@ -124,6 +132,11 @@ export async function POST(req: NextRequest) {
     notes,
     status,
   });
+
+  const { queueDriveSync, syncNarrationToDrive } = await import(
+    "@/lib/google-drive"
+  );
+  queueDriveSync(() => syncNarrationToDrive(narration));
 
   return NextResponse.json({ narration }, { status: 201 });
 }
