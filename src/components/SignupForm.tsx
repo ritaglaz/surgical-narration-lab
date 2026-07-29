@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+/** Bootstrap-only: creates the first admin (or claims an existing email as admin). */
 export function SignupForm() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
@@ -39,6 +40,11 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        Create the <strong>admin</strong> account that uploads videos and sends
+        invite links. Narrators do not sign up — they open the link you send
+        them.
+      </p>
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
@@ -84,10 +90,10 @@ export function SignupForm() {
         disabled={loading}
         className="w-full rounded-md bg-teal-800 px-4 py-2.5 font-medium text-white hover:bg-teal-900 disabled:opacity-60"
       >
-        {loading ? "Creating account…" : "Create account"}
+        {loading ? "Creating admin…" : "Create admin account"}
       </button>
       <p className="text-center text-sm text-slate-600">
-        Already registered?{" "}
+        Already an admin?{" "}
         <Link href="/login" className="text-teal-800 underline">
           Log in
         </Link>

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { PlaybackClient } from "@/components/PlaybackClient";
+import { canAccessVideo } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { getNarrationById, getProfileById, getVideoById } from "@/lib/db";
 
@@ -16,6 +17,10 @@ export default async function PlaybackPage({
   const video = getVideoById(id);
   const narration = getNarrationById(narrationId);
   if (!video || !narration || narration.video_id !== video.id) notFound();
+  if (!canAccessVideo(user, id)) redirect("/dashboard");
+  if (user.role !== "admin" && narration.user_id !== user.id) {
+    redirect(`/videos/${id}`);
+  }
 
   const narrator = getProfileById(narration.user_id);
 

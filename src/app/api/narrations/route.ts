@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { canAccessVideo } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import { MAX_AUDIO_BYTES } from "@/lib/config";
 import {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const video_id = String(form.get("video_id") || "");
   const narration_mode = String(
-    form.get("narration_mode") || ""
+    form.get("narration_mode") || "dictation"
   ) as NarrationMode;
   const status = (String(form.get("status") || "draft") ||
     "draft") as NarrationStatus;
@@ -43,8 +44,9 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
 
   if (!video_id) return jsonError("video_id is required");
-  if (!["synchronized", "dictation"].includes(narration_mode)) {
-    return jsonError("narration_mode must be synchronized or dictation");
+  // New recordings are always post-video dictation.
+  if (narration_mode !== "dictation") {
+    return jsonError("Only post-video dictation is supported");
   }
   if (!["draft", "submitted"].includes(status)) {
     return jsonError("status must be draft or submitted");
@@ -52,6 +54,9 @@ export async function POST(req: NextRequest) {
 
   const video = getVideoById(video_id);
   if (!video) return jsonError("Video not found", 404);
+  if (!canAccessVideo(user, video_id)) {
+    return jsonError("Not authorized to narrate this video", 403);
+  }
 
   if (!(file instanceof File) && !existingId) {
     return jsonError("Audio file is required for a new narration");

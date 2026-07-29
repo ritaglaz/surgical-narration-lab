@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 export default async function UploadPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.role !== "admin") redirect("/dashboard");
 
   return (
     <div className="min-h-screen">
@@ -15,7 +16,8 @@ export default async function UploadPage() {
           Upload surgical video
         </h1>
         <p className="mt-2 text-slate-600">
-          MP4 and WebM are recommended. MOV may work depending on the browser.
+          MP4 and WebM are recommended. After uploading, invite narrators from
+          the Invite page so they receive a private link.
         </p>
         <div className="mt-8 rounded-lg border border-slate-200 bg-white/80 p-6 shadow-sm">
           <UploadForm />

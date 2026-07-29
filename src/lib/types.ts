@@ -51,3 +51,29 @@ export interface SessionUser {
   display_name: string;
   role: UserRole;
 }
+
+export interface VideoAssignment {
+  id: string;
+  video_id: string;
+  user_id: string;
+  invited_by: string;
+  created_at: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  display_name: string | null;
+  token: string;
+  invited_by: string;
+  accepted_at: string | null;
+  user_id: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface InviteWithVideos extends Invite {
+  video_ids: string[];
+  video_titles: string[];
+  invited_by_name?: string;
+}

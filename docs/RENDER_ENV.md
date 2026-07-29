@@ -24,6 +24,15 @@ Copy these from your local `.env.local` (do not paste secrets into chat):
 | `GOOGLE_OAUTH_CLIENT_SECRET` | from `.env.local` |
 | `GOOGLE_OAUTH_REFRESH_TOKEN` | from `.env.local` |
 
+## Invite emails (optional but recommended)
+| Key | Value |
+| --- | --- |
+| `NEXT_PUBLIC_APP_URL` | `https://surgical-narration-lab.onrender.com` |
+| `RESEND_API_KEY` | from [resend.com](https://resend.com) |
+| `EMAIL_FROM` | verified sender, e.g. `Surgical Narration Lab <you@yourdomain.com>` |
+
+Without Resend, admins can still create invites and **copy the link** from the Invite page.
+
 ## After saving env vars
 1. **Manual Deploy** → **Deploy latest commit** (or wait for auto-deploy)
 2. Confirm the latest GitHub commit includes Google Drive sync code

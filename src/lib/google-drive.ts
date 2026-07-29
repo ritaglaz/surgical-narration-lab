@@ -4,9 +4,9 @@ import path from "path";
 import { Readable } from "stream";
 import { getDataDir } from "./config";
 import {
-  getNarrationById,
   getProfileById,
   getVideoById,
+  listAssigneesForVideo,
   listNarrationsForVideo,
   listVideos,
 } from "./db";
@@ -181,6 +181,7 @@ function buildManifest() {
         video_storage_path: v.video_storage_path,
         created_at: v.created_at,
         narration_count: v.narration_count,
+        assignees: listAssigneesForVideo(v.id),
         narrations,
       };
     }),
@@ -202,11 +203,16 @@ export async function syncVideoMetadataToDrive(video: Video): Promise<void> {
   if (!driveEnabled()) return;
   const uploader = getProfileById(video.uploaded_by);
   const narrations = listNarrationsForVideo(video.id);
+  const assignees = listAssigneesForVideo(video.id);
   const payload = {
     ...video,
     uploader_email: uploader?.email || null,
     uploader_name: uploader?.display_name || null,
-    narrations,
+    assignees,
+    narrations: narrations.map((n) => ({
+      ...n,
+      narrator_role: getProfileById(n.user_id)?.role || null,
+    })),
     updated_at: new Date().toISOString(),
   };
   await upsertFile({
@@ -255,7 +261,11 @@ export async function syncNarrationToDrive(
         ...narration,
         narrator_name: narrator?.display_name || null,
         narrator_email: narrator?.email || null,
+        narrator_role: narrator?.role || null,
+        narrator_user_id: narration.user_id,
         video_title: video?.title || null,
+        video_procedure_type: video?.procedure_type || null,
+        video_case_id: video?.case_id || null,
         drive_audio_file_id: audioDriveId || null,
         synced_at: new Date().toISOString(),
       },

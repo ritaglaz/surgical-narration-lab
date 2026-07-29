@@ -22,22 +22,22 @@ export default async function HomePage() {
           </h1>
           <p className="max-w-xl text-lg text-slate-700">{APP_TAGLINE}</p>
           <p className="max-w-xl text-slate-600">
-            Upload surgical videos, record synchronized voiceovers or post-case
-            dictations, and return later to review saved narrations — all behind
-            authenticated access.
+            Admins upload surgical videos and invite narrators by email. Invitees
+            only see their assigned cases, record voiceovers, and submissions
+            sync to Google Drive with narrator identity.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/signup"
+              href="/login"
               className="rounded-md bg-teal-800 px-5 py-2.5 font-medium text-white hover:bg-teal-900"
             >
-              Create account
+              Log in
             </Link>
             <Link
-              href="/login"
+              href="/signup"
               className="rounded-md border border-slate-300 bg-white/70 px-5 py-2.5 font-medium text-slate-800 hover:bg-white"
             >
-              Log in
+              First-time admin setup
             </Link>
           </div>
         </section>
@@ -45,10 +45,10 @@ export default async function HomePage() {
           <PrivacyNotice />
           <div className="rounded-lg border border-slate-200 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
             <ol className="list-decimal space-y-2 pl-4">
-              <li>Sign in and upload a video with case metadata.</li>
-              <li>Choose synchronized voiceover or post-video dictation.</li>
-              <li>Preview, re-record if needed, then save draft or submit.</li>
-              <li>Replay saved narrations from the library anytime.</li>
+              <li>Admin uploads a video with case metadata.</li>
+              <li>Admin invites a narrator and assigns specific videos.</li>
+              <li>Invitee opens the link, watches the video, then dictation pops up.</li>
+              <li>Audio + JSON (with user info) sync to Google Drive.</li>
             </ol>
           </div>
         </div>

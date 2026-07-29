@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatDate, formatDuration } from "@/lib/format";
-import type { VideoWithStats } from "@/lib/types";
+import type { SessionUser, VideoWithStats } from "@/lib/types";
 
 export function DashboardClient({
   initialVideos,
   procedures,
+  user,
 }: {
   initialVideos: VideoWithStats[];
   procedures: string[];
+  user: SessionUser;
 }) {
+  const isAdmin = user.role === "admin";
   const [q, setQ] = useState("");
   const [procedure, setProcedure] = useState("all");
   const [status, setStatus] = useState("all");
@@ -33,18 +36,30 @@ export function DashboardClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl text-slate-900">
-            Video library
+            {isAdmin ? "Video library" : "Your assigned videos"}
           </h1>
           <p className="mt-1 text-slate-600">
-            Open a case to narrate, or upload a new surgical video.
+            {isAdmin
+              ? "Upload cases, then invite narrators with private links."
+              : "Open a case assigned to you to record narration."}
           </p>
         </div>
-        <Link
-          href="/videos/upload"
-          className="inline-flex items-center justify-center rounded-md bg-teal-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-900"
-        >
-          Upload video
-        </Link>
+        {isAdmin && (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/invites"
+              className="inline-flex items-center justify-center rounded-md border border-teal-800 px-4 py-2.5 text-sm font-medium text-teal-900 hover:bg-teal-50"
+            >
+              Invite narrators
+            </Link>
+            <Link
+              href="/videos/upload"
+              className="inline-flex items-center justify-center rounded-md bg-teal-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-900"
+            >
+              Upload video
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/70 p-4 sm:grid-cols-3">
@@ -89,11 +104,20 @@ export function DashboardClient({
 
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white/50 px-6 py-12 text-center text-slate-600">
-          No videos match these filters.{" "}
-          <Link href="/videos/upload" className="text-teal-800 underline">
-            Upload one
-          </Link>
-          .
+          {isAdmin ? (
+            <>
+              No videos match these filters.{" "}
+              <Link href="/videos/upload" className="text-teal-800 underline">
+                Upload one
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              No videos have been assigned to you yet. When an admin invites you,
+              they will appear here.
+            </>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -105,7 +129,9 @@ export function DashboardClient({
                 <th className="px-4 py-3 font-medium">Uploaded</th>
                 <th className="px-4 py-3 font-medium">Duration</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Recordings</th>
+                {isAdmin && (
+                  <th className="px-4 py-3 font-medium">Recordings</th>
+                )}
                 <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
@@ -121,24 +147,26 @@ export function DashboardClient({
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{v.procedure_type}</td>
-                  <td className="px-4 py-3 text-slate-700">
+                  <td className="px-4 py-3 text-slate-600">
                     {formatDate(v.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-slate-700">
+                  <td className="px-4 py-3 text-slate-600">
                     {formatDuration(v.duration)}
                   </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={v.narration_status} />
+                  <td className="px-4 py-3 capitalize text-slate-700">
+                    {v.narration_status.replace("_", " ")}
                   </td>
-                  <td className="px-4 py-3 text-slate-700">{v.narration_count}</td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-slate-600">
+                      {v.narration_count}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/videos/${v.id}`}
-                      className="inline-flex rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900"
+                      className="font-medium text-teal-800 hover:underline"
                     >
-                      {v.narration_status === "not_started"
-                        ? "Start narrating"
-                        : "Continue"}
+                      Open
                     </Link>
                   </td>
                 </tr>
@@ -148,29 +176,5 @@ export function DashboardClient({
         </div>
       )}
     </div>
-  );
-}
-
-function StatusBadge({
-  status,
-}: {
-  status: "not_started" | "draft" | "submitted";
-}) {
-  const styles = {
-    not_started: "bg-slate-100 text-slate-700",
-    draft: "bg-amber-100 text-amber-900",
-    submitted: "bg-teal-100 text-teal-900",
-  };
-  const labels = {
-    not_started: "Not started",
-    draft: "Draft",
-    submitted: "Submitted",
-  };
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}
-    >
-      {labels[status]}
-    </span>
   );
 }

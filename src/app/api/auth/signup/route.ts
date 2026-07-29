@@ -13,7 +13,6 @@ export async function POST(req: Request) {
       email: String(body.email || ""),
       password: String(body.password || ""),
       display_name: String(body.display_name || ""),
-      role: body.role === "admin" ? "admin" : undefined,
     });
     const token = await createSessionToken(user);
     await setSessionCookie(token);

@@ -1,5 +1,6 @@
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
+import { canAccessVideo } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import { getNarrationById, getVideoById } from "@/lib/db";
 import { contentTypeForPath, fileExists, resolveStoragePath } from "@/lib/storage";
@@ -25,11 +26,18 @@ export async function GET(
   if (kind === "video") {
     const video = getVideoById(id);
     if (!video) return jsonError("Not found", 404);
+    if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
     storagePath = video.video_storage_path;
   } else if (kind === "audio") {
     const narration = getNarrationById(id);
     if (!narration || !narration.audio_storage_path) {
       return jsonError("Not found", 404);
+    }
+    if (!canAccessVideo(user, narration.video_id)) {
+      return jsonError("Not authorized", 403);
+    }
+    if (user.role !== "admin" && narration.user_id !== user.id) {
+      return jsonError("Not authorized", 403);
     }
     storagePath = narration.audio_storage_path;
   } else {

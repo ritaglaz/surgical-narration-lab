@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canAccessVideo } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import {
   getVideoById,
+  listAssigneesForVideo,
   listNarrationsForVideo,
   updateVideoDuration,
 } from "@/lib/db";
@@ -16,9 +18,20 @@ export async function GET(
   const { id } = await context.params;
   const video = getVideoById(id);
   if (!video) return jsonError("Video not found", 404);
+  if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
 
-  const narrations = listNarrationsForVideo(id);
-  return NextResponse.json({ video, narrations });
+  const allNarrations = listNarrationsForVideo(id);
+  const narrations =
+    user.role === "admin"
+      ? allNarrations
+      : allNarrations.filter((n) => n.user_id === user.id);
+
+  return NextResponse.json({
+    video,
+    narrations,
+    assignees:
+      user.role === "admin" ? listAssigneesForVideo(id) : undefined,
+  });
 }
 
 export async function PATCH(
@@ -31,6 +44,7 @@ export async function PATCH(
   const { id } = await context.params;
   const video = getVideoById(id);
   if (!video) return jsonError("Video not found", 404);
+  if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
 
   const body = await req.json();
   if (typeof body.duration === "number" && body.duration > 0) {

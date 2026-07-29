@@ -9,7 +9,10 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const videos = listVideos({ userId: user.id });
+  const videos = listVideos({
+    userId: user.id,
+    assignedToUserId: user.role === "admin" ? undefined : user.id,
+  });
   const procedures = getDistinctProcedureTypes();
 
   return (
@@ -17,7 +20,11 @@ export default async function DashboardPage() {
       <Nav user={user} />
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
         <PrivacyNotice compact />
-        <DashboardClient initialVideos={videos} procedures={procedures} />
+        <DashboardClient
+          initialVideos={videos}
+          procedures={procedures}
+          user={user}
+        />
       </main>
     </div>
   );

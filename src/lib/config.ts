@@ -43,3 +43,17 @@ export function isLocalMode(): boolean {
 export function getDataDir(): string {
   return process.env.DATA_DIR || "./data";
 }
+
+/** Public base URL for invite links (no trailing slash). */
+export function getAppBaseUrl(fallbackOrigin?: string): string {
+  const fromEnv =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.APP_URL;
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  if (fallbackOrigin) return fallbackOrigin.replace(/\/$/, "");
+  return "http://localhost:3000";
+}
+
+/** Invite links expire after this many days. */
+export const INVITE_EXPIRY_DAYS = Number(process.env.INVITE_EXPIRY_DAYS || 30);

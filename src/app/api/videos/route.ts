@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     procedure_type: searchParams.get("procedure") || undefined,
     status: searchParams.get("status") || undefined,
     userId: user.id,
+    assignedToUserId: user.role === "admin" ? undefined : user.id,
   });
 
   return NextResponse.json({
@@ -37,6 +38,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
+  if (user.role !== "admin") {
+    return jsonError("Only admins can upload videos", 403);
+  }
 
   const id = randomUUID();
 

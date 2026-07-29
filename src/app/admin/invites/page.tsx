@@ -1,0 +1,28 @@
+import { redirect } from "next/navigation";
+import { Nav } from "@/components/Nav";
+import { InviteAdminClient } from "@/components/InviteAdminClient";
+import { getSessionUser } from "@/lib/auth";
+import { listInvites, listVideos } from "@/lib/db";
+import { isEmailConfigured } from "@/lib/email";
+
+export default async function AdminInvitesPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.role !== "admin") redirect("/dashboard");
+
+  const videos = listVideos({ userId: user.id });
+  const invites = listInvites();
+
+  return (
+    <div className="min-h-screen">
+      <Nav user={user} />
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <InviteAdminClient
+          videos={videos}
+          initialInvites={invites}
+          emailConfigured={isEmailConfigured()}
+        />
+      </main>
+    </div>
+  );
+}

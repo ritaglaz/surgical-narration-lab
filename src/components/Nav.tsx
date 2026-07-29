@@ -5,6 +5,8 @@ import { APP_NAME } from "@/lib/config";
 import type { SessionUser } from "@/lib/types";
 
 export function Nav({ user }: { user: SessionUser | null }) {
+  const isAdmin = user?.role === "admin";
+
   return (
     <header className="border-b border-slate-200 bg-[#f7f5f1]/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -23,16 +25,27 @@ export function Nav({ user }: { user: SessionUser | null }) {
                 href="/dashboard"
                 className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200/60"
               >
-                Library
+                {isAdmin ? "Library" : "My videos"}
               </Link>
-              <Link
-                href="/videos/upload"
-                className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200/60"
-              >
-                Upload
-              </Link>
+              {isAdmin && (
+                <>
+                  <Link
+                    href="/videos/upload"
+                    className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200/60"
+                  >
+                    Upload
+                  </Link>
+                  <Link
+                    href="/admin/invites"
+                    className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200/60"
+                  >
+                    Invite
+                  </Link>
+                </>
+              )}
               <span className="hidden text-slate-500 sm:inline">
                 {user.display_name}
+                {isAdmin ? " · admin" : ""}
               </span>
               <button
                 type="button"
@@ -52,12 +65,6 @@ export function Nav({ user }: { user: SessionUser | null }) {
                 className="rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200/60"
               >
                 Log in
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-md bg-teal-800 px-3 py-2 text-white hover:bg-teal-900"
-              >
-                Create account
               </Link>
             </>
           )}
