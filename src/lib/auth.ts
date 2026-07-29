@@ -119,6 +119,10 @@ export async function clearSessionCookie() {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
+  // Restore SQLite from Drive after Free Render filesystem wipes.
+  const { ensurePersistenceRestored } = await import("./google-drive");
+  await ensurePersistenceRestored();
+
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;

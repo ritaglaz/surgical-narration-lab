@@ -27,11 +27,25 @@ export function getDb(): Database.Database {
   if (dbInstance) return dbInstance;
   const dir = ensureDataDir();
   const dbPath = path.join(dir, "app.db");
+  // If a previous empty shell was created before Drive restore, prefer replacing
+  // it only when the singleton has not been opened yet (this path).
   dbInstance = new Database(dbPath);
   dbInstance.pragma("journal_mode = WAL");
   dbInstance.pragma("foreign_keys = ON");
   migrate(dbInstance);
   return dbInstance;
+}
+
+/** Close DB so a Drive restore can replace the file on disk. */
+export function closeDbForRestore() {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {
+      // ignore
+    }
+    dbInstance = null;
+  }
 }
 
 function migrate(db: Database.Database) {

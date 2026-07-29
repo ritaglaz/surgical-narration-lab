@@ -44,8 +44,17 @@ export async function GET(
     return jsonError("Invalid media kind", 400);
   }
 
-  if (!storagePath || !fileExists(storagePath)) {
+  if (!storagePath) {
     return jsonError("File not found", 404);
+  }
+
+  if (!fileExists(storagePath)) {
+    const { ensureLocalFileFromDrive } = await import("@/lib/google-drive");
+    const restored = await ensureLocalFileFromDrive(storagePath, {
+      id,
+      kind: kind === "audio" ? "audio" : "video",
+    });
+    if (!restored) return jsonError("File not found", 404);
   }
 
   const abs = resolveStoragePath(storagePath);

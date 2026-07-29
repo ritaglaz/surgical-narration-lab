@@ -2,6 +2,9 @@ services:
   - type: web
     name: surgical-operative-note-lab
     runtime: node
+    # Free filesystem is wiped on sleep/redeploy. Persistence comes from Google Drive
+    # backup (GOOGLE_DRIVE_*). Optional: upgrade to starter + attach a disk at
+    # /opt/render/project/src/data for local durability (see docs/RENDER_ENV.md).
     plan: free
     region: oregon
     buildCommand: npm install && npm run build
@@ -21,4 +24,16 @@ services:
       - key: NEXT_PUBLIC_APP_TAGLINE
         value: Research platform for surgical operative note dictation
       - key: ADMIN_EMAILS
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: GOOGLE_DRIVE_SYNC
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REFRESH_TOKEN
         sync: false

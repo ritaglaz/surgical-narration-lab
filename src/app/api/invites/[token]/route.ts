@@ -15,6 +15,9 @@ export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ token: string }> }
 ) {
+  const { ensurePersistenceRestored } = await import("@/lib/google-drive");
+  await ensurePersistenceRestored();
+
   const { token } = await context.params;
   const invite = getInviteByToken(token);
   if (!invite) return jsonError("Invitation not found", 404);
@@ -53,6 +56,8 @@ export async function POST(
     });
     const session = await createSessionToken(user);
     await setSessionCookie(session);
+    const { queueDatabaseSync } = await import("@/lib/google-drive");
+    queueDatabaseSync();
     return NextResponse.json({ user });
   } catch (err) {
     if (err instanceof AuthError) {

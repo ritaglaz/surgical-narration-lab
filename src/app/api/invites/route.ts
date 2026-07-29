@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { isAdmin } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import { getAppBaseUrl, INVITE_EXPIRY_DAYS } from "@/lib/config";
 import { createInvite, getVideoById, listInvites } from "@/lib/db";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
-  if (user.role !== "admin") return jsonError("Admin access required", 403);
+  if (!isAdmin(user)) return jsonError("Admin access required", 403);
   return NextResponse.json({
     invites: listInvites(),
     emailConfigured: isEmailConfigured(),
@@ -21,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
-  if (user.role !== "admin") return jsonError("Admin access required", 403);
+  if (!isAdmin(user)) return jsonError("Admin access required", 403);
 
   let body: {
     email?: string;
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
     videoTitles: invite.video_titles,
     recipientName: display_name,
   });
+
+  const { queueDatabaseSync } = await import("@/lib/google-drive");
+  queueDatabaseSync();
 
   return NextResponse.json(
     {

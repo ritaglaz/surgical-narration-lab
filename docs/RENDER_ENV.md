@@ -8,7 +8,7 @@ In Render → your Web Service → **Environment**, add/update these.
 | `AUTH_SECRET` | long random string (keep existing if already set) |
 | `NODE_VERSION` | `22` |
 | `STORAGE_BACKEND` | `local` |
-| `DATA_DIR` | `./data` |
+| `DATA_DIR` | `./data` (must live on a **persistent disk** on Render — see below) |
 | `NEXT_PUBLIC_APP_NAME` | `Surgical Operative Note Lab` |
 | `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical operative note dictation` |
 | `MAX_VIDEO_BYTES` | `314572800` |
@@ -39,5 +39,26 @@ Without Resend, admins can still create invites and **copy the link** from the I
 2. Confirm the latest GitHub commit includes Google Drive sync code
 3. Save a narration on the live site and check the **Surgical Vision** Drive folder
 
-## Important limitation
-Render free disk is still ephemeral for **video files**. Drive sync backs up **audio + JSON**. For durable video storage later, use Supabase Storage.
+## Required for durable logins + videos (critical)
+
+Render **Free** web services wipe the local filesystem whenever the service sleeps or redeploys. That deletes local SQLite and uploads.
+
+### Option A — Google Drive backup (works on Free)
+
+With `GOOGLE_DRIVE_SYNC=true` and OAuth folder vars set, the app now:
+
+1. Backs up **SQLite** (`snl-app.db`) after signups, invites, uploads, and narrations
+2. Backs up **video files** (not only JSON metadata)
+3. Restores the database and missing media files when the server starts again
+
+Keep Drive credentials configured on Render. After the first successful signup/upload you should see `snl-app.db` and `video-…` files in the Drive folder.
+
+### Option B — Persistent disk (most reliable, paid)
+
+Upgrade the web service to **Starter** (~$7/mo) and attach a disk:
+
+1. Render → service → **Settings** → instance type **Starter**
+2. Render → service → **Disks** → mount path `/opt/render/project/src/data`, size **5 GB**
+3. Keep `DATA_DIR=./data`
+
+You can use A and B together.

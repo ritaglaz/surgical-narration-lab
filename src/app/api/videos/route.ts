@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
       uploaded_by: user.id,
     });
 
-    const { queueDriveSync, syncVideoMetadataToDrive } = await import(
+    const { queueDriveSync, syncVideoFileToDrive } = await import(
       "@/lib/google-drive"
     );
-    queueDriveSync(() => syncVideoMetadataToDrive(video));
+    queueDriveSync(() => syncVideoFileToDrive(video));
 
     return NextResponse.json({ video }, { status: 201 });
   } catch (err) {

@@ -76,16 +76,14 @@ This signs up a disposable user, uploads a tiny WebM fixture, saves a narration,
 
 ## Deploy
 
-### Option A — Render (web service) + local-compatible build
+### Option A — Render (web service)
 
-1. Push this repo to GitHub.
-2. Create a **Web Service** on [Render](https://render.com).
-3. Build: `npm install && npm run build`
-4. Start: `npm run start`
-5. Set env vars from `.env.example` (`AUTH_SECRET` required).
-6. **Limitation:** Render’s free filesystem is ephemeral. Uploaded media and SQLite will be lost on redeploy/restart unless you attach a persistent disk **or** migrate to Supabase storage + Postgres.
+1. Push this repo to GitHub and deploy on [Render](https://render.com).
+2. Build: `npm install && npm run build` · Start: `npm run start`
+3. Set env vars from `.env.example` / `docs/RENDER_ENV.md` (`AUTH_SECRET` + `ADMIN_EMAILS` required).
+4. **Persistence:** Free Render wipes local files on sleep/redeploy. Configure **Google Drive sync** (`GOOGLE_DRIVE_*`) so SQLite, videos, and audio are backed up and restored automatically. For the most reliable option, upgrade to **Starter** and attach a disk at `/opt/render/project/src/data` (see `docs/RENDER_ENV.md`).
 
-For anything beyond demos, use Option B.
+For institutional durability, prefer Option B.
 
 ### Option B — Render app + Supabase (recommended for persistence)
 
