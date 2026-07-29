@@ -17,6 +17,6 @@ services:
       - key: DATA_DIR
         value: ./data
       - key: NEXT_PUBLIC_APP_NAME
-        value: Surgical Narration Lab
+        value: Surgical Operative Note Lab
       - key: NEXT_PUBLIC_APP_TAGLINE
-        value: Research platform for surgical video narration
+        value: Research platform for surgical operative note dictation

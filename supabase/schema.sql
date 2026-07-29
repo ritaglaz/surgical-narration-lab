@@ -1,4 +1,4 @@
--- Surgical Narration Lab — Supabase / PostgreSQL schema
+-- Surgical Operative Note Lab — Supabase / PostgreSQL schema
 -- Run in the Supabase SQL editor when migrating from local SQLite.
 -- This mirrors the local MVP tables and supports roles for later use.
 

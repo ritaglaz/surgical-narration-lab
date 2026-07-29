@@ -10,7 +10,7 @@ In Render → your Web Service → **Environment**, add/update these.
 | `STORAGE_BACKEND` | `local` |
 | `DATA_DIR` | `./data` |
 | `NEXT_PUBLIC_APP_NAME` | `Surgical Operative Note Lab` |
-| `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical video narration` |
+| `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical operative note dictation` |
 | `MAX_VIDEO_BYTES` | `314572800` |
 | `ADMIN_EMAILS` | `ritaglaz@buffalo.edu,pseger@buffalo.edu` |
 
