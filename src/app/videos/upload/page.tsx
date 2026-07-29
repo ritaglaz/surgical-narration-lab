@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { UploadForm } from "@/components/UploadForm";
+import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 
 export default async function UploadPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/dashboard");
+  if (!isAdmin(user)) redirect("/dashboard");
 
   return (
     <div className="min-h-screen">

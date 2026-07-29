@@ -20,3 +20,5 @@ services:
         value: Surgical Operative Note Lab
       - key: NEXT_PUBLIC_APP_TAGLINE
         value: Research platform for surgical operative note dictation
+      - key: ADMIN_EMAILS
+        sync: false

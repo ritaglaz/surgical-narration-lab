@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { canUploadVideos, isAdmin } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import {
   ALLOWED_VIDEO_EXTENSIONS,
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
     procedure_type: searchParams.get("procedure") || undefined,
     status: searchParams.get("status") || undefined,
     userId: user.id,
-    assignedToUserId: user.role === "admin" ? undefined : user.id,
+    // Shared admin library: do not scope by assignment/uploader.
+    assignedToUserId: isAdmin(user) ? undefined : user.id,
   });
 
   return NextResponse.json({
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
-  if (user.role !== "admin") {
+  if (!canUploadVideos(user)) {
     return jsonError("Only admins can upload videos", 403);
   }
 

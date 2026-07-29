@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Nav } from "@/components/Nav";
 import { InviteAdminClient } from "@/components/InviteAdminClient";
+import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { listInvites, listVideos } from "@/lib/db";
 import { isEmailConfigured } from "@/lib/email";
@@ -8,8 +9,9 @@ import { isEmailConfigured } from "@/lib/email";
 export default async function AdminInvitesPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/dashboard");
+  if (!isAdmin(user)) redirect("/dashboard");
 
+  // Shared library: all videos available for narrator invites.
   const videos = listVideos({ userId: user.id });
   const invites = listInvites();
 

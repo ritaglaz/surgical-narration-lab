@@ -24,7 +24,7 @@ export function DashboardClient({
       if (procedure !== "all" && v.procedure_type !== procedure) return false;
       if (status !== "all" && v.narration_status !== status) return false;
       if (q.trim()) {
-        const hay = `${v.title} ${v.procedure_type} ${v.case_id || ""}`.toLowerCase();
+        const hay = `${v.title} ${v.procedure_type} ${v.case_id || ""} ${v.uploader_name || ""}`.toLowerCase();
         if (!hay.includes(q.trim().toLowerCase())) return false;
       }
       return true;
@@ -36,11 +36,11 @@ export function DashboardClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl text-slate-900">
-            {isAdmin ? "Video library" : "Your assigned videos"}
+            {isAdmin ? "Shared video library" : "Your assigned videos"}
           </h1>
           <p className="mt-1 text-slate-600">
             {isAdmin
-              ? "Upload cases, then invite narrators with private links."
+              ? "All admins see every uploaded case. Invite narrators with private links."
               : "Open a case assigned to you to record narration."}
           </p>
         </div>
@@ -126,6 +126,9 @@ export function DashboardClient({
               <tr>
                 <th className="px-4 py-3 font-medium">Title</th>
                 <th className="px-4 py-3 font-medium">Procedure</th>
+                {isAdmin && (
+                  <th className="px-4 py-3 font-medium">Uploaded by</th>
+                )}
                 <th className="px-4 py-3 font-medium">Uploaded</th>
                 <th className="px-4 py-3 font-medium">Duration</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -147,6 +150,11 @@ export function DashboardClient({
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{v.procedure_type}</td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-slate-600">
+                      {v.uploader_name || "—"}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-slate-600">
                     {formatDate(v.created_at)}
                   </td>

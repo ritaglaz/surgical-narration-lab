@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canAccessVideo } from "@/lib/access";
+import { canAccessVideo, isAdmin } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import {
   getVideoById,
@@ -21,16 +21,15 @@ export async function GET(
   if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
 
   const allNarrations = listNarrationsForVideo(id);
-  const narrations =
-    user.role === "admin"
-      ? allNarrations
-      : allNarrations.filter((n) => n.user_id === user.id);
+  const admin = isAdmin(user);
+  const narrations = admin
+    ? allNarrations
+    : allNarrations.filter((n) => n.user_id === user.id);
 
   return NextResponse.json({
     video,
     narrations,
-    assignees:
-      user.role === "admin" ? listAssigneesForVideo(id) : undefined,
+    assignees: admin ? listAssigneesForVideo(id) : undefined,
   });
 }
 

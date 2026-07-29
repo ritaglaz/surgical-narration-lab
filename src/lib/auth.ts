@@ -137,8 +137,14 @@ export async function requireUser(): Promise<SessionUser> {
 
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "admin") throw new AuthError("Admin access required", 403);
-  return user;
+  if (user.role === "admin" || isAllowlistedAdminEmail(user.email)) {
+    if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
+      setProfileRole(user.id, "admin");
+      return { ...user, role: "admin" };
+    }
+    return user;
+  }
+  throw new AuthError("Admin access required", 403);
 }
 
 export class AuthError extends Error {
