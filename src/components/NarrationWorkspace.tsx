@@ -279,11 +279,18 @@ export function NarrationWorkspace({
 
       setEditingId(data.narration.id);
       if (data.narration.next_step) setNextStep(data.narration.next_step);
-      setMessage(
-        status === "submitted"
-          ? "Dictation submitted. Thank you."
-          : "Draft saved. You can return later to continue."
-      );
+      const driveStatus = data.narration.drive_sync_status;
+      if (status === "submitted") {
+        setMessage(
+          driveStatus === "failed"
+            ? "Saved, but Drive sync failed — please submit again."
+            : driveStatus === "synced" || driveStatus === "not_required"
+              ? "Dictation submitted and saved. Thank you."
+              : "Dictation submitted. Thank you."
+        );
+      } else {
+        setMessage("Draft saved. You can return later to continue.");
+      }
 
       const refresh = await fetch(`/api/videos/${video.id}`);
       const refreshed = await refresh.json();

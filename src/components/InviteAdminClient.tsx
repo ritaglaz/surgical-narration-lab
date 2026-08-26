@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { InviteWithVideos, VideoWithStats } from "@/lib/types";
+import type { InvitePublic, VideoWithStats } from "@/lib/types";
 
 export function InviteAdminClient({
   videos,
@@ -9,7 +9,7 @@ export function InviteAdminClient({
   emailConfigured,
 }: {
   videos: VideoWithStats[];
-  initialInvites: InviteWithVideos[];
+  initialInvites: InvitePublic[];
   emailConfigured: boolean;
 }) {
   const [email, setEmail] = useState("");

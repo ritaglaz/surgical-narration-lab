@@ -5,6 +5,7 @@ import { getSessionUser, jsonError } from "@/lib/auth";
 import { getAppBaseUrl, INVITE_EXPIRY_DAYS } from "@/lib/config";
 import { createInvite, getVideoById, listInvites } from "@/lib/db";
 import { isEmailConfigured, sendInviteEmail } from "@/lib/email";
+import { toPublicInvite } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET() {
   if (!user) return jsonError("Authentication required", 401);
   if (!isAdmin(user)) return jsonError("Admin access required", 403);
   return NextResponse.json({
-    invites: listInvites(),
+    invites: listInvites().map(toPublicInvite),
     emailConfigured: isEmailConfigured(),
   });
 }
@@ -87,14 +88,11 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(
     {
-      invite: {
-        id: invite.id,
-        email: invite.email,
-        display_name: invite.display_name,
-        expires_at: invite.expires_at,
+      invite: toPublicInvite({
+        ...invite,
         video_ids: invite.video_ids,
         video_titles: invite.video_titles,
-      },
+      }),
       inviteUrl,
       email: emailResult,
     },

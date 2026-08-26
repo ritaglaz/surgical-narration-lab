@@ -1,6 +1,6 @@
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import { canAccessVideo } from "@/lib/access";
+import { canAccessVideo, isAdmin } from "@/lib/access";
 import { getSessionUser, jsonError } from "@/lib/auth";
 import { getNarrationById, getVideoById } from "@/lib/db";
 import { contentTypeForPath, fileExists, resolveStoragePath } from "@/lib/storage";
@@ -36,7 +36,7 @@ export async function GET(
     if (!canAccessVideo(user, narration.video_id)) {
       return jsonError("Not authorized", 403);
     }
-    if (user.role !== "admin" && narration.user_id !== user.id) {
+    if (!isAdmin(user) && narration.user_id !== user.id) {
       return jsonError("Not authorized", 403);
     }
     storagePath = narration.audio_storage_path;

@@ -124,6 +124,9 @@ function migrate(db: Database.Database) {
   `);
 
   ensureColumn(db, "narrations", "next_step", "TEXT");
+  ensureColumn(db, "narrations", "drive_sync_status", "TEXT DEFAULT 'not_required'");
+  ensureColumn(db, "narrations", "drive_audio_file_id", "TEXT");
+  ensureColumn(db, "narrations", "drive_synced_at", "TEXT");
 }
 
 function ensureColumn(
@@ -362,6 +365,9 @@ export function updateNarration(
     next_step: string | null;
     status: NarrationStatus;
     narration_mode: NarrationMode;
+    drive_sync_status: string | null;
+    drive_audio_file_id: string | null;
+    drive_synced_at: string | null;
   }>
 ): Narration | null {
   const current = getNarrationById(id);
@@ -388,6 +394,18 @@ export function updateNarration(
       patch.narration_mode !== undefined
         ? patch.narration_mode
         : current.narration_mode,
+    drive_sync_status:
+      patch.drive_sync_status !== undefined
+        ? patch.drive_sync_status
+        : current.drive_sync_status ?? "not_required",
+    drive_audio_file_id:
+      patch.drive_audio_file_id !== undefined
+        ? patch.drive_audio_file_id
+        : current.drive_audio_file_id ?? null,
+    drive_synced_at:
+      patch.drive_synced_at !== undefined
+        ? patch.drive_synced_at
+        : current.drive_synced_at ?? null,
   };
 
   getDb()
@@ -400,12 +418,53 @@ export function updateNarration(
         next_step = @next_step,
         status = @status,
         narration_mode = @narration_mode,
+        drive_sync_status = @drive_sync_status,
+        drive_audio_file_id = @drive_audio_file_id,
+        drive_synced_at = @drive_synced_at,
         updated_at = datetime('now')
        WHERE id = @id`
     )
     .run({ id, ...next });
 
   return getNarrationById(id);
+}
+
+/** Latest narration for a user+video (for idempotent double-submit). */
+export function getLatestNarrationForUserVideo(
+  userId: string,
+  videoId: string
+): Narration | null {
+  const row = getDb()
+    .prepare(
+      `SELECT * FROM narrations
+       WHERE user_id = ? AND video_id = ?
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    )
+    .get(userId, videoId) as Narration | undefined;
+  return row || null;
+}
+
+export function getDbStats(): {
+  profiles: number;
+  videos: number;
+  narrations: number;
+  invites: number;
+} {
+  const db = getDb();
+  const profiles = (
+    db.prepare(`SELECT COUNT(*) AS c FROM profiles`).get() as { c: number }
+  ).c;
+  const videos = (
+    db.prepare(`SELECT COUNT(*) AS c FROM videos`).get() as { c: number }
+  ).c;
+  const narrations = (
+    db.prepare(`SELECT COUNT(*) AS c FROM narrations`).get() as { c: number }
+  ).c;
+  const invites = (
+    db.prepare(`SELECT COUNT(*) AS c FROM invites`).get() as { c: number }
+  ).c;
+  return { profiles, videos, narrations, invites };
 }
 
 export function getDistinctProcedureTypes(): string[] {

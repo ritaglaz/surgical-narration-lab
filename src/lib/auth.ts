@@ -49,7 +49,20 @@ function ensureAdminRoleIfAllowlisted(profile: {
 const INVITE_ONLY_PASSWORD_PLACEHOLDER = "";
 
 function getSecret() {
-  const secret = process.env.AUTH_SECRET || "dev-only-change-me-snl-secret-key";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret === "dev-only-change-me-snl-secret-key") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "AUTH_SECRET must be set to a long random value in production"
+      );
+    }
+    console.warn(
+      "[auth] Using insecure default AUTH_SECRET — set AUTH_SECRET before production use"
+    );
+    return new TextEncoder().encode(
+      secret || "dev-only-change-me-snl-secret-key"
+    );
+  }
   return new TextEncoder().encode(secret);
 }
 
@@ -187,6 +200,14 @@ export async function signupUser(input: {
   const existing = getProfileByEmail(email);
 
   if (existing) {
+    // Never overwrite an existing passworded account via signup (account takeover).
+    if (existing.password_hash) {
+      throw new AuthError(
+        "An account with this email already exists. Please log in instead.",
+        409
+      );
+    }
+    // Invite-only narrator claiming an allowlisted admin email: set password + role.
     updateProfilePassword(existing.id, password_hash);
     setProfileRole(existing.id, "admin");
     if (display_name) updateProfileDisplayName(existing.id, display_name);

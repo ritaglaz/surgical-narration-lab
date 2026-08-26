@@ -5,6 +5,7 @@ import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { listInvites, listVideos } from "@/lib/db";
 import { isEmailConfigured } from "@/lib/email";
+import { toPublicInvite } from "@/lib/types";
 
 export default async function AdminInvitesPage() {
   const user = await getSessionUser();
@@ -13,7 +14,7 @@ export default async function AdminInvitesPage() {
 
   // Shared library: all videos available for narrator invites.
   const videos = listVideos({ userId: user.id });
-  const invites = listInvites();
+  const invites = listInvites().map(toPublicInvite);
 
   return (
     <div className="min-h-screen">

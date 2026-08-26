@@ -1,3 +1,4 @@
+import Database from "better-sqlite3";
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
@@ -6,11 +7,13 @@ import { DICTATION_PROMPT, getDataDir } from "./config";
 import {
   getDb,
   closeDbForRestore,
+  getDbStats,
   getProfileById,
   getVideoById,
   listAssigneesForVideo,
   listNarrationsForVideo,
   listVideos,
+  updateNarration,
 } from "./db";
 import {
   contentTypeForPath,
@@ -24,6 +27,8 @@ type DriveIndex = Record<string, string>; // logicalName -> driveFileId
 
 const DB_LOGICAL = "app.db";
 const DB_FILENAME = "snl-app.db";
+const DB_META_LOGICAL = "db-meta.json";
+const DB_META_FILENAME = "snl-db-meta.json";
 const INDEX_LOGICAL = "drive-index.json";
 const INDEX_FILENAME = "snl-drive-index.json";
 
@@ -262,7 +267,6 @@ function localDbHasUserData(file: string): boolean {
   try {
     if (fs.statSync(file).size < 200) return false;
     // Open read-only without going through the app singleton.
-    const Database = require("better-sqlite3") as typeof import("better-sqlite3");
     const probe = new Database(file, { readonly: true, fileMustExist: true });
     try {
       const row = probe
@@ -318,8 +322,24 @@ export async function restorePersistenceFromDrive(): Promise<void> {
   }
 
   if (localDbHasUserData(localDb)) {
-    console.log("[persistence] local SQLite has accounts; skipping Drive DB restore");
-    return;
+    // Still restore if Drive backup is strictly richer (wipe + accidental local signup).
+    const remoteMeta = await readRemoteDbMeta();
+    const local = probeDbStats(localDb);
+    if (
+      remoteMeta &&
+      (remoteMeta.profiles > local.profiles ||
+        remoteMeta.videos > local.videos ||
+        remoteMeta.narrations > local.narrations)
+    ) {
+      console.warn(
+        "[persistence] local DB is smaller than Drive backup — restoring Drive copy"
+      );
+    } else {
+      console.log(
+        "[persistence] local SQLite has accounts; skipping Drive DB restore"
+      );
+      return;
+    }
   }
 
   // Close any in-memory handle before replacing the file.
@@ -338,6 +358,81 @@ export async function restorePersistenceFromDrive(): Promise<void> {
   console.log("[persistence] restored SQLite database from Google Drive");
 }
 
+function probeDbStats(file: string): {
+  profiles: number;
+  videos: number;
+  narrations: number;
+  invites: number;
+} {
+  const empty = { profiles: 0, videos: 0, narrations: 0, invites: 0 };
+  if (!fs.existsSync(file) || fs.statSync(file).size < 200) return empty;
+  try {
+    const probe = new Database(file, { readonly: true, fileMustExist: true });
+    try {
+      const count = (table: string) => {
+        try {
+          return (
+            probe.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as {
+              c: number;
+            }
+          ).c;
+        } catch {
+          return 0;
+        }
+      };
+      return {
+        profiles: count("profiles"),
+        videos: count("videos"),
+        narrations: count("narrations"),
+        invites: count("invites"),
+      };
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return empty;
+  }
+}
+
+type DbMeta = {
+  profiles: number;
+  videos: number;
+  narrations: number;
+  invites: number;
+  updated_at: string;
+};
+
+async function readRemoteDbMeta(): Promise<DbMeta | null> {
+  try {
+    const fileId = await resolveFileId(DB_META_LOGICAL, DB_META_FILENAME);
+    if (!fileId) return null;
+    const tmp = path.join(getDataDir(), ".snl-db-meta-restore.json");
+    await downloadFileToPath(fileId, tmp);
+    const meta = JSON.parse(fs.readFileSync(tmp, "utf8")) as DbMeta;
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // ignore
+    }
+    return meta;
+  } catch {
+    return null;
+  }
+}
+
+async function writeRemoteDbMeta(stats: Omit<DbMeta, "updated_at">) {
+  const meta: DbMeta = {
+    ...stats,
+    updated_at: new Date().toISOString(),
+  };
+  await upsertFile({
+    logicalName: DB_META_LOGICAL,
+    filename: DB_META_FILENAME,
+    mimeType: "application/json",
+    body: JSON.stringify(meta, null, 2),
+  });
+}
+
 /** Checkpoint WAL and upload app.db so accounts/invites survive Render sleep. */
 export async function syncDatabaseToDrive(): Promise<void> {
   if (!driveEnabled()) return;
@@ -345,6 +440,22 @@ export async function syncDatabaseToDrive(): Promise<void> {
   db.pragma("wal_checkpoint(TRUNCATE)");
   const localDb = dbPath();
   if (!fs.existsSync(localDb)) return;
+
+  const localStats = getDbStats();
+  const remoteMeta = await readRemoteDbMeta();
+  if (
+    remoteMeta &&
+    (remoteMeta.profiles > localStats.profiles ||
+      remoteMeta.videos > localStats.videos ||
+      remoteMeta.narrations > localStats.narrations)
+  ) {
+    console.error(
+      "[persistence] REFUSING to overwrite Drive SQLite with a smaller local database",
+      { localStats, remoteMeta }
+    );
+    return;
+  }
+
   await upsertFile({
     logicalName: DB_LOGICAL,
     filename: DB_FILENAME,
@@ -352,6 +463,7 @@ export async function syncDatabaseToDrive(): Promise<void> {
     body: fs.readFileSync(localDb),
     filePath: localDb,
   });
+  await writeRemoteDbMeta(localStats);
 }
 
 let dbSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -518,66 +630,93 @@ export async function syncVideoMetadataToDrive(video: Video): Promise<void> {
 export async function syncNarrationToDrive(
   narration: Narration
 ): Promise<{ audioDriveId?: string }> {
-  if (!driveEnabled()) return {};
-
-  const video = getVideoById(narration.video_id);
-  const narrator = getProfileById(narration.user_id);
-  let audioDriveId: string | undefined;
-
-  if (narration.audio_storage_path) {
-    const ext = path.extname(narration.audio_storage_path) || ".webm";
-    const buf = readFileBuffer(narration.audio_storage_path);
-    const mime =
-      ext === ".mp3"
-        ? "audio/mpeg"
-        : ext === ".wav"
-          ? "audio/wav"
-          : ext === ".m4a" || ext === ".mp4"
-            ? "audio/mp4"
-            : "audio/webm";
-    audioDriveId = await upsertFile({
-      logicalName: `audio/${narration.id}${ext}`,
-      filename: `narration-${narration.id}${ext}`,
-      mimeType: mime,
-      body: buf,
+  if (!driveEnabled()) {
+    updateNarration(narration.id, {
+      drive_sync_status: "not_required",
+      drive_synced_at: new Date().toISOString(),
     });
-    // Also index under media/ path for generic restore.
-    const index = readIndex();
-    if (audioDriveId) {
-      index[mediaLogicalName(narration.audio_storage_path)] = audioDriveId;
-      writeIndex(index);
-    }
+    return {};
   }
 
-  await upsertFile({
-    logicalName: `narrations/${narration.id}.json`,
-    filename: `narration-${narration.id}.json`,
-    mimeType: "application/json",
-    body: JSON.stringify(
-      {
-        ...narration,
-        dictation_prompt: DICTATION_PROMPT,
-        narrator_name: narrator?.display_name || null,
-        narrator_email: narrator?.email || null,
-        narrator_role: narrator?.role || null,
-        narrator_user_id: narration.user_id,
-        video_title: video?.title || null,
-        video_procedure_type: video?.procedure_type || null,
-        video_case_id: video?.case_id || null,
-        next_step: narration.next_step || null,
-        drive_audio_file_id: audioDriveId || null,
-        synced_at: new Date().toISOString(),
-      },
-      null,
-      2
-    ),
-  });
+  updateNarration(narration.id, { drive_sync_status: "pending" });
 
-  if (video) await syncVideoMetadataToDrive(video);
-  else await syncManifestToDrive();
+  try {
+    const video = getVideoById(narration.video_id);
+    const narrator = getProfileById(narration.user_id);
+    let audioDriveId: string | undefined;
 
-  await syncDatabaseToDrive();
-  return { audioDriveId };
+    if (narration.audio_storage_path) {
+      const ext = path.extname(narration.audio_storage_path) || ".webm";
+      const buf = readFileBuffer(narration.audio_storage_path);
+      const mime =
+        ext === ".mp3"
+          ? "audio/mpeg"
+          : ext === ".wav"
+            ? "audio/wav"
+            : ext === ".m4a" || ext === ".mp4"
+              ? "audio/mp4"
+              : "audio/webm";
+      audioDriveId = await upsertFile({
+        logicalName: `audio/${narration.id}${ext}`,
+        filename: `narration-${narration.id}${ext}`,
+        mimeType: mime,
+        body: buf,
+      });
+      const index = readIndex();
+      if (audioDriveId) {
+        index[mediaLogicalName(narration.audio_storage_path)] = audioDriveId;
+        writeIndex(index);
+      }
+    }
+
+    const syncedAt = new Date().toISOString();
+    await upsertFile({
+      logicalName: `narrations/${narration.id}.json`,
+      filename: `narration-${narration.id}.json`,
+      mimeType: "application/json",
+      body: JSON.stringify(
+        {
+          submission_id: narration.id,
+          narration_id: narration.id,
+          ...narration,
+          dictation_prompt: DICTATION_PROMPT,
+          narrator_name: narrator?.display_name || null,
+          narrator_email: narrator?.email || null,
+          narrator_role: narrator?.role || null,
+          narrator_user_id: narration.user_id,
+          video_id: narration.video_id,
+          video_title: video?.title || null,
+          video_procedure_type: video?.procedure_type || null,
+          video_case_id: video?.case_id || null,
+          next_step: narration.next_step || null,
+          drive_audio_file_id: audioDriveId || null,
+          audio_filename: audioDriveId
+            ? `narration-${narration.id}${path.extname(narration.audio_storage_path || "") || ".webm"}`
+            : null,
+          synced_at: syncedAt,
+          submitted_at:
+            narration.status === "submitted" ? narration.updated_at : null,
+        },
+        null,
+        2
+      ),
+    });
+
+    if (video) await syncVideoMetadataToDrive(video);
+    else await syncManifestToDrive();
+
+    updateNarration(narration.id, {
+      drive_sync_status: "synced",
+      drive_audio_file_id: audioDriveId || null,
+      drive_synced_at: syncedAt,
+    });
+
+    await syncDatabaseToDrive();
+    return { audioDriveId };
+  } catch (err) {
+    updateNarration(narration.id, { drive_sync_status: "failed" });
+    throw err;
+  }
 }
 
 /** Fire-and-forget helper so API responses are not blocked on Drive errors. */

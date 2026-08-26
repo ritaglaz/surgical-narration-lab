@@ -53,12 +53,17 @@ With `GOOGLE_DRIVE_SYNC=true` and OAuth folder vars set, the app now:
 
 Keep Drive credentials configured on Render. After the first successful signup/upload you should see `snl-app.db` and `video-…` files in the Drive folder.
 
-### Option B — Persistent disk (most reliable, paid)
+## Persistence (critical on Render Free)
 
-Upgrade the web service to **Starter** (~$7/mo) and attach a disk:
+Render Free wipes local files on sleep/redeploy. This app mitigates that by backing up SQLite + media to Google Drive and restoring on boot.
 
-1. Render → service → **Settings** → instance type **Starter**
-2. Render → service → **Disks** → mount path `/opt/render/project/src/data`, size **5 GB**
+**Strongly recommended for research use:** upgrade to **Starter** (~$7/mo) and attach a disk:
+
+1. Render → `surgical-operative-note-lab` → **Settings** → change instance to **Starter** (requires billing card)
+2. **Disk** → Add disk
+   - Mount path: `/opt/render/project/src/data`
+   - Size: **5 GB** (or larger)
 3. Keep `DATA_DIR=./data`
+4. Redeploy, then sign up once more if the Free-tier DB was wiped
 
-You can use A and B together.
+Drive backup remains as a secondary safety net.

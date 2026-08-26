@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3", "googleapis"],
+  serverExternalPackages: [
+    "better-sqlite3",
+    "googleapis",
+    "google-auth-library",
+    "gaxios",
+    "https-proxy-agent",
+    "agent-base",
+  ],
   experimental: {
     serverActions: {
       bodySizeLimit: "550mb",

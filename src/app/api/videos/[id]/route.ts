@@ -47,7 +47,10 @@ export async function PATCH(
 
   const body = await req.json();
   if (typeof body.duration === "number" && body.duration > 0) {
-    updateVideoDuration(id, body.duration);
+    // Narrators may fill in missing duration from the player; admins can always update.
+    if (isAdmin(user) || video.duration == null) {
+      updateVideoDuration(id, body.duration);
+    }
   }
 
   return NextResponse.json({ video: getVideoById(id) });

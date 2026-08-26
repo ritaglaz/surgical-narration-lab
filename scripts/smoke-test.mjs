@@ -69,9 +69,10 @@ async function main() {
 
   const narrForm = new FormData();
   narrForm.append("video_id", videoId);
-  narrForm.append("narration_mode", "synchronized");
+  narrForm.append("narration_mode", "dictation");
   narrForm.append("status", "submitted");
   narrForm.append("notes", "Smoke test narration");
+  narrForm.append("next_step", "CURSOR_E2E_TEST_DO_NOT_USE next step");
   narrForm.append("video_start_timestamp", "0");
   narrForm.append("recording_duration", "1");
   narrForm.append(

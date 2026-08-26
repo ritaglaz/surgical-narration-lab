@@ -60,31 +60,40 @@ If you were not expecting this email, you can ignore it.
     <p style="color:#666;font-size:13px;">Or paste this link: ${escapeHtml(opts.inviteUrl)}</p>
   `;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [opts.to],
-      subject: `Invitation to narrate videos — ${APP_NAME}`,
-      text,
-      html,
-    }),
-  });
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [opts.to],
+        subject: `Invitation to narrate videos — ${APP_NAME}`,
+        text,
+        html,
+      }),
+    });
 
-  if (!res.ok) {
-    const body = await res.text();
-    console.error("[email] Resend failed:", res.status, body);
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[email] Resend failed:", res.status, body);
+      return {
+        sent: false,
+        reason: `Email provider error (${res.status}). Copy the invite link instead.`,
+      };
+    }
+
+    return { sent: true, provider: "resend" };
+  } catch (err) {
+    console.error("[email] Resend network error:", err);
     return {
       sent: false,
-      reason: `Email provider error (${res.status}). Copy the invite link instead.`,
+      reason:
+        "Could not reach the email provider. Copy the invite link instead.",
     };
   }
-
-  return { sent: true, provider: "resend" };
 }
 
 function escapeHtml(s: string) {
