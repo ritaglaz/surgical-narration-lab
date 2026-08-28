@@ -31,6 +31,16 @@ describe("Drive sync failure semantics", () => {
     expect(fileA).not.toBe(fileB);
     expect(fileA).toContain(idA);
   });
+
+  it("wraps buffers as readable streams for googleapis multipart upload", async () => {
+    const { Readable } = await import("stream");
+    const buf = Buffer.from('{"ok":true}');
+    const stream = Readable.from([buf]);
+    expect(typeof stream.pipe).toBe("function");
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString("utf8")).toBe('{"ok":true}');
+  });
 });
 
 describe("AUTH_SECRET production guard", () => {

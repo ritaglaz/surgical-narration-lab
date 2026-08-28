@@ -43,11 +43,13 @@ async function persistDriveSync(
     console.error("[narrations] drive sync failed:", message);
     const failed = await getNarrationById(narrationId);
     if (requireDrive) {
+      const oauthBroken = /invalid_grant/i.test(message);
       return {
         ok: false,
         narration: failed,
-        error:
-          "Your recording was saved, but Google Drive sync failed. Please try Submit again.",
+        error: oauthBroken
+          ? "Your recording was saved, but Google Drive sync failed (OAuth token expired). An admin must reconnect Google Drive, then try Submit again."
+          : "Your recording was saved, but Google Drive sync failed. Please try Submit again.",
       };
     }
     return { ok: true, narration: failed };

@@ -18,7 +18,6 @@ import {
 import {
   contentTypeForPath,
   fileExists,
-  readFileBuffer,
   resolveStoragePath,
 } from "./storage";
 import type { Narration, Video } from "./types";
@@ -184,11 +183,18 @@ async function upsertFile(opts: {
   const existingId =
     index[opts.logicalName] || (await findFileIdByName(opts.filename));
 
-  const toMediaBody = () => {
+  // googleapis multipart upload requires a Readable stream (.pipe).
+  // Passing a raw Buffer throws: "part.body.pipe is not a function".
+  const toMediaBody = (): Readable => {
     if (opts.filePath) return fs.createReadStream(opts.filePath);
-    return typeof opts.body === "string"
-      ? Buffer.from(opts.body, "utf8")
-      : opts.body;
+    if (typeof opts.body === "string") {
+      return Readable.from([Buffer.from(opts.body, "utf8")]);
+    }
+    if (Buffer.isBuffer(opts.body)) {
+      return Readable.from([opts.body]);
+    }
+    if (opts.body instanceof Readable) return opts.body;
+    return Readable.from([Buffer.from([])]);
   };
 
   if (existingId) {
@@ -657,8 +663,13 @@ export async function syncNarrationToDrive(
     let audioDriveId: string | undefined;
 
     if (narration.audio_storage_path) {
+      if (!fileExists(narration.audio_storage_path)) {
+        throw new Error(
+          `Audio file missing locally (${narration.audio_storage_path}); cannot sync to Drive`
+        );
+      }
       const ext = path.extname(narration.audio_storage_path) || ".webm";
-      const buf = readFileBuffer(narration.audio_storage_path);
+      const abs = resolveStoragePath(narration.audio_storage_path);
       const mime =
         ext === ".mp3"
           ? "audio/mpeg"
@@ -671,7 +682,8 @@ export async function syncNarrationToDrive(
         logicalName: `audio/${narration.id}${ext}`,
         filename: `narration-${narration.id}${ext}`,
         mimeType: mime,
-        body: buf,
+        body: fs.createReadStream(abs),
+        filePath: abs,
       });
       const index = readIndex();
       if (audioDriveId) {
@@ -713,18 +725,33 @@ export async function syncNarrationToDrive(
       ),
     });
 
-    if (video) await syncVideoMetadataToDrive(video);
-    else await syncManifestToDrive();
-
+    // Mark submission synced as soon as audio + narration JSON are on Drive.
+    // Manifest/video metadata are best-effort and must not fail the submit UX.
     await updateNarration(narration.id, {
       drive_sync_status: "synced",
       drive_audio_file_id: audioDriveId || null,
       drive_synced_at: syncedAt,
     });
 
+    try {
+      if (video) await syncVideoMetadataToDrive(video);
+      else await syncManifestToDrive();
+    } catch (metaErr) {
+      console.error(
+        "[google-drive] narration uploaded, but metadata/manifest sync failed:",
+        metaErr
+      );
+    }
+
     await syncDatabaseToDrive();
     return { audioDriveId };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/invalid_grant/i.test(message)) {
+      console.error(
+        "[google-drive] OAuth refresh token is invalid/expired. Re-run: node scripts/google-drive-auth.mjs and update GOOGLE_OAUTH_REFRESH_TOKEN on Render."
+      );
+    }
     await updateNarration(narration.id, { drive_sync_status: "failed" });
     throw err;
   }
