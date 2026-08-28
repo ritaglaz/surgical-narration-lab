@@ -22,6 +22,8 @@ export interface Video {
   duration: number | null;
   uploaded_by: string;
   created_at: string;
+  drive_video_file_id?: string | null;
+  drive_sync_status?: DriveSyncStatus | null;
 }
 
 export type DriveSyncStatus =

@@ -7,15 +7,15 @@ import {
   ALLOWED_VIDEO_TYPES,
   MAX_VIDEO_BYTES,
 } from "@/lib/config";
-import { createVideo, listVideos, getDistinctProcedureTypes } from "@/lib/db";
+import { createVideo, listVideos, getDistinctProcedureTypes, getVideoById } from "@/lib/db";
 import { extensionForMime } from "@/lib/format";
 import { parseMultipartToDisk } from "@/lib/multipart";
 import { deleteFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Allow longer uploads on hosted platforms */
-export const maxDuration = 60;
+/** Allow longer uploads + Drive sync on hosted platforms */
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -108,12 +108,28 @@ export async function POST(req: NextRequest) {
       uploaded_by: user.id,
     });
 
-    const { queueDriveSync, syncVideoFileToDrive } = await import(
+    const { isGoogleDriveConfigured, syncVideoFileToDrive } = await import(
       "@/lib/google-drive"
     );
-    queueDriveSync(() => syncVideoFileToDrive(video));
 
-    return NextResponse.json({ video }, { status: 201 });
+    let driveWarning: string | undefined;
+    if (isGoogleDriveConfigured()) {
+      try {
+        // Must complete before response: fire-and-forget left videos only on
+        // ephemeral disk, so invitees lost playback after Render restarts.
+        await syncVideoFileToDrive(video);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[upload] Google Drive video sync failed:", message);
+        driveWarning =
+          "Video saved on the server, but Google Drive backup failed. Re-upload after Drive is connected or the file may disappear on Render restart.";
+      }
+    }
+
+    return NextResponse.json(
+      { video: (await getVideoById(video.id)) || video, warning: driveWarning },
+      { status: 201 }
+    );
   } catch (err) {
     deleteFile(parsed.file.storagePath);
     console.error("[upload] db error", err);

@@ -59,6 +59,35 @@ export function NarrationWorkspace({
   const videoSrc = `/api/media/video/${video.id}`;
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(videoSrc, {
+          headers: { Range: "bytes=0-0" },
+          credentials: "same-origin",
+        });
+        if (cancelled) return;
+        if (res.status === 404) {
+          const data = await res.json().catch(() => null);
+          setVideoError(
+            (data && data.error) ||
+              "Video file is missing from the server. An admin must re-upload this video."
+          );
+        } else if (!res.ok && res.status !== 206 && res.status !== 200) {
+          setVideoError(
+            `Video could not be loaded (HTTP ${res.status}). Try refreshing, or ask an admin to re-upload.`
+          );
+        }
+      } catch {
+        // Network errors are handled by the video element onError as well.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoSrc]);
+
+  useEffect(() => {
     return () => {
       stopMeters();
       stopStream();
@@ -381,8 +410,10 @@ export function NarrationWorkspace({
               void onLoadedMetadata();
             }}
             onError={() =>
-              setVideoError(
-                "This video file could not be played in the browser (it may be corrupt or an unsupported format)."
+              setVideoError((prev) =>
+                prev
+                  ? prev
+                  : "This video file could not be played. If it disappeared after a server restart, ask an admin to re-upload it (new uploads are backed up to Google Drive)."
               )
             }
             onEnded={onVideoEnded}

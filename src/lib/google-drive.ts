@@ -14,6 +14,7 @@ import {
   listNarrationsForVideo,
   listVideos,
   updateNarration,
+  updateVideoDriveFields,
 } from "./db";
 import {
   contentTypeForPath,
@@ -503,19 +504,48 @@ function mediaDriveFilename(storagePath: string, id: string) {
 }
 
 /** Upload the actual video bytes (not just JSON metadata). */
-export async function syncVideoFileToDrive(video: Video): Promise<void> {
-  if (!driveEnabled()) return;
-  if (!fileExists(video.video_storage_path)) return;
-  const abs = resolveStoragePath(video.video_storage_path);
-  await upsertFile({
-    logicalName: mediaLogicalName(video.video_storage_path),
-    filename: mediaDriveFilename(video.video_storage_path, video.id),
-    mimeType: contentTypeForPath(video.video_storage_path),
-    body: fs.createReadStream(abs),
-    filePath: abs,
-  });
-  await syncVideoMetadataToDrive(video);
-  await syncDatabaseToDrive();
+export async function syncVideoFileToDrive(video: Video): Promise<string | undefined> {
+  if (!driveEnabled()) {
+    await updateVideoDriveFields(video.id, {
+      drive_sync_status: "not_required",
+    });
+    return undefined;
+  }
+  if (!fileExists(video.video_storage_path)) {
+    throw new Error(
+      `Cannot sync video ${video.id}: local file missing (${video.video_storage_path})`
+    );
+  }
+
+  await updateVideoDriveFields(video.id, { drive_sync_status: "pending" });
+
+  try {
+    const abs = resolveStoragePath(video.video_storage_path);
+    const driveId = await upsertFile({
+      logicalName: mediaLogicalName(video.video_storage_path),
+      filename: mediaDriveFilename(video.video_storage_path, video.id),
+      mimeType: contentTypeForPath(video.video_storage_path),
+      body: fs.createReadStream(abs),
+      filePath: abs,
+    });
+    await updateVideoDriveFields(video.id, {
+      drive_video_file_id: driveId,
+      drive_sync_status: "synced",
+    });
+    try {
+      await syncVideoMetadataToDrive(video);
+    } catch (metaErr) {
+      console.error(
+        "[google-drive] video file uploaded, but metadata sync failed:",
+        metaErr
+      );
+    }
+    await syncDatabaseToDrive();
+    return driveId;
+  } catch (err) {
+    await updateVideoDriveFields(video.id, { drive_sync_status: "failed" });
+    throw err;
+  }
 }
 
 /**
@@ -524,13 +554,46 @@ export async function syncVideoFileToDrive(video: Video): Promise<void> {
  */
 export async function ensureLocalFileFromDrive(
   storagePath: string,
-  opts?: { id?: string; kind?: "video" | "audio" }
+  opts?: {
+    id?: string;
+    kind?: "video" | "audio";
+    driveFileId?: string | null;
+  }
 ): Promise<boolean> {
   if (fileExists(storagePath)) return true;
   if (!driveEnabled()) return false;
 
   await hydrateDriveIndexFromDrive();
 
+  const tried = new Set<string>();
+  const tryDownload = async (fileId: string | undefined) => {
+    if (!fileId || tried.has(fileId)) return false;
+    tried.add(fileId);
+    try {
+      const abs = resolveStoragePath(storagePath);
+      await downloadFileToPath(fileId, abs);
+      const st = fs.statSync(abs);
+      // Guard against accidentally restoring a tiny JSON metadata file as media.
+      if (st.size < 1024) {
+        console.error(
+          "[google-drive] restored file looks too small to be media; discarding",
+          { storagePath, fileId, size: st.size }
+        );
+        fs.unlinkSync(abs);
+        return false;
+      }
+      return fileExists(storagePath);
+    } catch (err) {
+      console.error("[google-drive] media restore failed:", err);
+      return false;
+    }
+  };
+
+  if (opts?.driveFileId && (await tryDownload(opts.driveFileId))) {
+    return true;
+  }
+
+  const ext = path.extname(storagePath) || ".bin";
   const candidates: Array<{ logical: string; filename: string }> = [
     {
       logical: mediaLogicalName(storagePath),
@@ -541,23 +604,29 @@ export async function ensureLocalFileFromDrive(
   ];
 
   if (opts?.kind === "audio" && opts.id) {
-    const ext = path.extname(storagePath) || ".webm";
     candidates.push({
       logical: `audio/${opts.id}${ext}`,
       filename: `narration-${opts.id}${ext}`,
     });
   }
 
-  for (const c of candidates) {
-    const fileId = await resolveFileId(c.logical, c.filename);
-    if (!fileId) continue;
-    try {
-      const abs = resolveStoragePath(storagePath);
-      await downloadFileToPath(fileId, abs);
-      return fileExists(storagePath);
-    } catch (err) {
-      console.error("[google-drive] media restore failed:", err);
+  if (opts?.kind === "video" && opts.id) {
+    // Also try common video extensions in case the stored path ext differs.
+    for (const tryExt of [ext, ".mp4", ".webm", ".mov"]) {
+      candidates.push({
+        logical: mediaLogicalName(
+          storagePath.replace(/\.[^.]+$/, tryExt)
+        ),
+        filename: `video-${opts.id}${tryExt}`,
+      });
     }
+  }
+
+  for (const c of candidates) {
+    // Never treat metadata JSON as the media bytes.
+    if (c.filename.endsWith(".json")) continue;
+    const fileId = await resolveFileId(c.logical, c.filename);
+    if (await tryDownload(fileId)) return true;
   }
   return false;
 }

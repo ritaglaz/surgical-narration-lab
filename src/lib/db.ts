@@ -58,6 +58,9 @@ function mapVideo(row: Record<string, unknown>): Video {
         : Number(row.duration),
     uploaded_by: String(row.uploaded_by),
     created_at: iso(row.created_at),
+    drive_video_file_id: (row.drive_video_file_id as string | null) ?? null,
+    drive_sync_status:
+      (row.drive_sync_status as Video["drive_sync_status"]) ?? null,
   };
 }
 
@@ -260,6 +263,33 @@ export async function listVideos(opts: {
 
 export async function updateVideoDuration(id: string, duration: number) {
   await execute(`UPDATE videos SET duration = ? WHERE id = ?`, [duration, id]);
+}
+
+export async function updateVideoDriveFields(
+  id: string,
+  patch: {
+    drive_video_file_id?: string | null;
+    drive_sync_status?: string | null;
+  }
+) {
+  const current = await getVideoById(id);
+  if (!current) return null;
+  await execute(
+    `UPDATE videos SET
+      drive_video_file_id = ?,
+      drive_sync_status = ?
+     WHERE id = ?`,
+    [
+      patch.drive_video_file_id !== undefined
+        ? patch.drive_video_file_id
+        : current.drive_video_file_id ?? null,
+      patch.drive_sync_status !== undefined
+        ? patch.drive_sync_status
+        : current.drive_sync_status ?? null,
+      id,
+    ]
+  );
+  return getVideoById(id);
 }
 
 export async function createNarration(input: {

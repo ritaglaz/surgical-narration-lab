@@ -295,6 +295,13 @@ async function runMigrations(): Promise<void> {
     );
     ensureSqliteColumn(db, "narrations", "drive_audio_file_id", "TEXT");
     ensureSqliteColumn(db, "narrations", "drive_synced_at", "TEXT");
+    ensureSqliteColumn(db, "videos", "drive_video_file_id", "TEXT");
+    ensureSqliteColumn(
+      db,
+      "videos",
+      "drive_sync_status",
+      "TEXT DEFAULT 'not_required'"
+    );
     return;
   }
 
@@ -312,6 +319,13 @@ async function runMigrations(): Promise<void> {
     );
     await ensurePgColumn(client, "narrations", "drive_audio_file_id", "TEXT");
     await ensurePgColumn(client, "narrations", "drive_synced_at", "TEXT");
+    await ensurePgColumn(client, "videos", "drive_video_file_id", "TEXT");
+    await ensurePgColumn(
+      client,
+      "videos",
+      "drive_sync_status",
+      "TEXT DEFAULT 'not_required'"
+    );
     await client.query("COMMIT");
   } catch (err) {
     try {

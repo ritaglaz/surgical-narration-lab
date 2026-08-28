@@ -6,6 +6,9 @@ import { getNarrationById, getVideoById } from "@/lib/db";
 import { contentTypeForPath, fileExists, resolveStoragePath } from "@/lib/storage";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+/** Allow time to restore large media from Google Drive after Render disk wipe. */
+export const maxDuration = 300;
 
 /**
  * Authenticated media proxy.
@@ -22,12 +25,14 @@ export async function GET(
   const { kind, id } = await context.params;
 
   let storagePath: string | null = null;
+  let driveFileId: string | null = null;
 
   if (kind === "video") {
     const video = await getVideoById(id);
     if (!video) return jsonError("Not found", 404);
     if (!(await canAccessVideo(user, id))) return jsonError("Not authorized", 403);
     storagePath = video.video_storage_path;
+    driveFileId = video.drive_video_file_id ?? null;
   } else if (kind === "audio") {
     const narration = await getNarrationById(id);
     if (!narration || !narration.audio_storage_path) {
@@ -40,6 +45,7 @@ export async function GET(
       return jsonError("Not authorized", 403);
     }
     storagePath = narration.audio_storage_path;
+    driveFileId = narration.drive_audio_file_id ?? null;
   } else {
     return jsonError("Invalid media kind", 400);
   }
@@ -53,8 +59,22 @@ export async function GET(
     const restored = await ensureLocalFileFromDrive(storagePath, {
       id,
       kind: kind === "audio" ? "audio" : "video",
+      driveFileId,
     });
-    if (!restored) return jsonError("File not found", 404);
+    if (!restored) {
+      console.error("[media] file missing locally and not restored from Drive", {
+        kind,
+        id,
+        storagePath,
+        driveFileId,
+      });
+      return jsonError(
+        kind === "video"
+          ? "Video file is missing from the server. An admin must re-upload this video (and wait for Google Drive sync)."
+          : "Audio file is missing from the server.",
+        404
+      );
+    }
   }
 
   const abs = resolveStoragePath(storagePath);
