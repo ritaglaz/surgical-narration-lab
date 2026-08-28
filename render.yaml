@@ -1,20 +1,30 @@
+databases:
+  - name: surgical-operative-note-lab-db
+    plan: free
+    region: oregon
+    databaseName: snl
+    user: snl
+
 services:
   - type: web
     name: surgical-operative-note-lab
     runtime: node
-    # Free filesystem is wiped on sleep/redeploy. Persistence comes from Google Drive
-    # backup (GOOGLE_DRIVE_*). Optional: upgrade to starter + attach a disk at
-    # /opt/render/project/src/data for local durability (see docs/RENDER_ENV.md).
     plan: free
     region: oregon
     buildCommand: npm install && npm run build
-    startCommand: npm run start
-    healthCheckPath: /
+    # Fail closed if DATABASE_URL is missing, then start Next.
+    startCommand: node scripts/check-prod-db.mjs && npm run start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # Set once in the dashboard and keep stable across deploys (do not regenerate).
       - key: AUTH_SECRET
-        generateValue: true
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: surgical-operative-note-lab-db
+          property: connectionString
       - key: STORAGE_BACKEND
         value: local
       - key: DATA_DIR

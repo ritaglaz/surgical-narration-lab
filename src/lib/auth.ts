@@ -11,6 +11,8 @@ import {
   assignVideoToUser,
   canBootstrapAdmin,
   createProfile,
+  ensureDbReady,
+  getDbBackend,
   getInviteByToken,
   getProfileByEmail,
   getProfileById,
@@ -22,14 +24,14 @@ import {
 import type { SessionUser, UserRole } from "./types";
 import { randomUUID } from "crypto";
 
-function ensureAdminRoleIfAllowlisted(profile: {
+async function ensureAdminRoleIfAllowlisted(profile: {
   id: string;
   email: string;
   display_name: string;
   role: UserRole;
-}): SessionUser {
+}): Promise<SessionUser> {
   if (isAllowlistedAdminEmail(profile.email) && profile.role !== "admin") {
-    setProfileRole(profile.id, "admin");
+    await setProfileRole(profile.id, "admin");
     return {
       id: profile.id,
       email: profile.email,
@@ -132,16 +134,19 @@ export async function clearSessionCookie() {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
-  // Restore SQLite from Drive after Free Render filesystem wipes.
-  const { ensurePersistenceRestored } = await import("./google-drive");
-  await ensurePersistenceRestored();
+  await ensureDbReady();
+  // SQLite-on-Free only: restore from Drive if local DB was wiped.
+  if (getDbBackend() === "sqlite") {
+    const { ensurePersistenceRestored } = await import("./google-drive");
+    await ensurePersistenceRestored();
+  }
 
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const session = await verifySessionToken(token);
   if (!session) return null;
-  const profile = getProfileById(session.id);
+  const profile = await getProfileById(session.id);
   if (!profile) return null;
   return ensureAdminRoleIfAllowlisted(profile);
 }
@@ -156,7 +161,7 @@ export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role === "admin" || isAllowlistedAdminEmail(user.email)) {
     if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
-      setProfileRole(user.id, "admin");
+      await setProfileRole(user.id, "admin");
       return { ...user, role: "admin" };
     }
     return user;
@@ -182,13 +187,14 @@ export async function signupUser(input: {
   password: string;
   display_name: string;
 }): Promise<SessionUser> {
+  await ensureDbReady();
   const email = input.email.trim().toLowerCase();
   if (!email || !input.password || input.password.length < 8) {
     throw new AuthError("Valid email and password (min 8 characters) required");
   }
 
   const allowlisted = isAllowlistedAdminEmail(email);
-  if (!canBootstrapAdmin() && !allowlisted) {
+  if (!(await canBootstrapAdmin()) && !allowlisted) {
     throw new AuthError(
       "Admin signup is closed. Log in with an authorized admin email, or ask an admin to invite you as a narrator.",
       403
@@ -197,26 +203,25 @@ export async function signupUser(input: {
 
   const password_hash = await hashPassword(input.password);
   const display_name = input.display_name.trim() || email.split("@")[0];
-  const existing = getProfileByEmail(email);
+  const existing = await getProfileByEmail(email);
 
   if (existing) {
-    // Never overwrite an existing passworded account via signup (account takeover).
     if (existing.password_hash) {
       throw new AuthError(
         "An account with this email already exists. Please log in instead.",
         409
       );
     }
-    // Invite-only narrator claiming an allowlisted admin email: set password + role.
-    updateProfilePassword(existing.id, password_hash);
-    setProfileRole(existing.id, "admin");
-    if (display_name) updateProfileDisplayName(existing.id, display_name);
-    const profile = getProfileById(existing.id)!;
+    await updateProfilePassword(existing.id, password_hash);
+    await setProfileRole(existing.id, "admin");
+    if (display_name) await updateProfileDisplayName(existing.id, display_name);
+    const profile = await getProfileById(existing.id);
+    if (!profile) throw new AuthError("Account update failed", 500);
     return ensureAdminRoleIfAllowlisted(profile);
   }
 
   const id = randomUUID();
-  const profile = createProfile({
+  const profile = await createProfile({
     id,
     email,
     password_hash,
@@ -235,22 +240,22 @@ export async function acceptInvite(input: {
   token: string;
   display_name?: string;
 }): Promise<SessionUser> {
-  const invite = getInviteByToken(input.token);
+  await ensureDbReady();
+  const invite = await getInviteByToken(input.token);
   if (!invite) throw new AuthError("Invitation not found", 404);
   if (new Date(invite.expires_at).getTime() < Date.now()) {
     throw new AuthError("This invitation has expired", 410);
   }
 
   const email = invite.email.trim().toLowerCase();
-  let profile = getProfileByEmail(email);
+  let profile = await getProfileByEmail(email);
   let userId: string;
 
   if (profile) {
     userId = profile.id;
-    // Never elevate admins/narrators roles via invite; only ensure display name.
     if (input.display_name?.trim()) {
-      updateProfileDisplayName(userId, input.display_name.trim());
-      profile = getProfileByEmail(email)!;
+      await updateProfileDisplayName(userId, input.display_name.trim());
+      profile = await getProfileByEmail(email);
     }
   } else {
     userId = randomUUID();
@@ -258,18 +263,18 @@ export async function acceptInvite(input: {
       input.display_name?.trim() ||
       invite.display_name?.trim() ||
       email.split("@")[0];
-    createProfile({
+    await createProfile({
       id: userId,
       email,
       password_hash: INVITE_ONLY_PASSWORD_PLACEHOLDER,
       display_name,
       role: "narrator",
     });
-    profile = getProfileByEmail(email)!;
+    profile = await getProfileByEmail(email);
   }
 
   for (const videoId of invite.video_ids) {
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: videoId,
       user_id: userId,
@@ -277,9 +282,10 @@ export async function acceptInvite(input: {
     });
   }
 
-  markInviteAccepted(invite.id, userId);
+  await markInviteAccepted(invite.id, userId);
 
-  const fresh = getProfileById(userId)!;
+  const fresh = await getProfileById(userId);
+  if (!fresh) throw new AuthError("Could not open invite", 500);
   return {
     id: fresh.id,
     email: fresh.email,
@@ -292,7 +298,8 @@ export async function loginUser(
   email: string,
   password: string
 ): Promise<SessionUser> {
-  const profile = getProfileByEmail(email.trim().toLowerCase());
+  await ensureDbReady();
+  const profile = await getProfileByEmail(email.trim().toLowerCase());
   if (!profile) throw new AuthError("Invalid email or password");
   if (!profile.password_hash) {
     throw new AuthError(

@@ -13,16 +13,16 @@ export async function GET(
   if (!user) return jsonError("Authentication required", 401);
 
   const { id } = await context.params;
-  const narration = getNarrationById(id);
+  const narration = await getNarrationById(id);
   if (!narration) return jsonError("Narration not found", 404);
-  if (!canAccessVideo(user, narration.video_id)) {
+  if (!(await canAccessVideo(user, narration.video_id))) {
     return jsonError("Not authorized", 403);
   }
   if (!isAdmin(user) && narration.user_id !== user.id) {
     return jsonError("Not authorized", 403);
   }
 
-  const video = getVideoById(narration.video_id);
+  const video = await getVideoById(narration.video_id);
   return NextResponse.json({ narration, video });
 }
 
@@ -34,7 +34,7 @@ export async function PATCH(
   if (!user) return jsonError("Authentication required", 401);
 
   const { id } = await context.params;
-  const narration = getNarrationById(id);
+  const narration = await getNarrationById(id);
   if (!narration) return jsonError("Narration not found", 404);
   if (narration.user_id !== user.id && !isAdmin(user)) {
     return jsonError("Not authorized", 403);
@@ -58,7 +58,7 @@ export async function PATCH(
     }
   }
 
-  const updated = updateNarration(id, {
+  const updated = await updateNarration(id, {
     notes: body.notes !== undefined ? body.notes : undefined,
     next_step,
     status,
@@ -77,7 +77,7 @@ export async function PATCH(
           {
             error:
               "Saved, but Google Drive sync failed. Please try again.",
-            narration: getNarrationById(id),
+            narration: await getNarrationById(id),
           },
           { status: 502 }
         );
@@ -85,5 +85,5 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ narration: getNarrationById(id) });
+  return NextResponse.json({ narration: await getNarrationById(id) });
 }

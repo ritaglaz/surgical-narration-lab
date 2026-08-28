@@ -7,10 +7,12 @@ export function InviteAdminClient({
   videos,
   initialInvites,
   emailConfigured,
+  persistenceLabel,
 }: {
   videos: VideoWithStats[];
   initialInvites: InvitePublic[];
   emailConfigured: boolean;
+  persistenceLabel?: string;
 }) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -91,6 +93,11 @@ export function InviteAdminClient({
           Choose videos, enter an email, and send a private link. That person
           will only see the videos you assign.
         </p>
+        {persistenceLabel ? (
+          <p className="mt-2 text-xs text-slate-500">
+            Database: {persistenceLabel}
+          </p>
+        ) : null}
         {!emailConfigured && (
           <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Email sending is not configured yet (

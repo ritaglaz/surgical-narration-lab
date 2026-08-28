@@ -4,13 +4,15 @@ import { AcceptInviteForm } from "@/components/AcceptInviteForm";
 import { APP_NAME } from "@/lib/config";
 import { getInviteByToken } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function InvitePage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const invite = getInviteByToken(token);
+  const invite = await getInviteByToken(token);
 
   return (
     <div className="min-h-screen">

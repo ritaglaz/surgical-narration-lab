@@ -6,6 +6,8 @@ import { randomUUID } from "crypto";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "snl-access-"));
 process.env.DATA_DIR = tmp;
+delete process.env.DATABASE_URL;
+delete process.env.RENDER;
 process.env.AUTH_SECRET = "vitest-auth-secret-at-least-32-chars!!";
 process.env.GOOGLE_DRIVE_SYNC = "false";
 process.env.ADMIN_EMAILS = "admin-a@example.com,admin-b@example.com";
@@ -18,7 +20,7 @@ describe("assignment isolation matrix", () => {
   let userHasVideoAccess: typeof import("@/lib/db").userHasVideoAccess;
   let canAccessVideo: typeof import("@/lib/access").canAccessVideo;
   let isAdmin: typeof import("@/lib/access").isAdmin;
-  let closeDbForRestore: typeof import("@/lib/db").closeDbForRestore;
+  let closeDb: typeof import("@/lib/db").closeDb;
 
   const ids = {
     adminA: randomUUID(),
@@ -42,37 +44,37 @@ describe("assignment isolation matrix", () => {
     userHasVideoAccess = db.userHasVideoAccess;
     canAccessVideo = access.canAccessVideo;
     isAdmin = access.isAdmin;
-    closeDbForRestore = db.closeDbForRestore;
+    closeDb = db.closeDb;
 
-    createProfile({
+    await createProfile({
       id: ids.adminA,
       email: "admin-a@example.com",
       password_hash: "x",
       display_name: "Admin A",
       role: "admin",
     });
-    createProfile({
+    await createProfile({
       id: ids.adminB,
       email: "admin-b@example.com",
       password_hash: "x",
       display_name: "Admin B",
       role: "admin",
     });
-    createProfile({
+    await createProfile({
       id: ids.narrA,
       email: "narr-a@example.com",
       password_hash: "",
       display_name: "Narrator A",
       role: "narrator",
     });
-    createProfile({
+    await createProfile({
       id: ids.narrB,
       email: "narr-b@example.com",
       password_hash: "",
       display_name: "Narrator B",
       role: "narrator",
     });
-    createProfile({
+    await createProfile({
       id: ids.narrC,
       email: "narr-c@example.com",
       password_hash: "",
@@ -86,7 +88,7 @@ describe("assignment isolation matrix", () => {
       [ids.v3, "Video 3"],
       [ids.v4, "Video 4"],
     ] as const) {
-      createVideo({
+      await createVideo({
         id,
         title,
         procedure_type: "Test",
@@ -98,32 +100,31 @@ describe("assignment isolation matrix", () => {
       });
     }
 
-    // A: 1,2  B: 2,3  C: 4
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: ids.v1,
       user_id: ids.narrA,
       invited_by: ids.adminA,
     });
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: ids.v2,
       user_id: ids.narrA,
       invited_by: ids.adminA,
     });
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: ids.v2,
       user_id: ids.narrB,
       invited_by: ids.adminA,
     });
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: ids.v3,
       user_id: ids.narrB,
       invited_by: ids.adminA,
     });
-    assignVideoToUser({
+    await assignVideoToUser({
       id: randomUUID(),
       video_id: ids.v4,
       user_id: ids.narrC,
@@ -131,39 +132,45 @@ describe("assignment isolation matrix", () => {
     });
   });
 
-  afterAll(() => {
-    closeDbForRestore();
+  afterAll(async () => {
+    await closeDb();
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("lists only assigned videos for each narrator", () => {
-    const a = listVideos({ assignedToUserId: ids.narrA }).map((v) => v.id).sort();
-    const b = listVideos({ assignedToUserId: ids.narrB }).map((v) => v.id).sort();
-    const c = listVideos({ assignedToUserId: ids.narrC }).map((v) => v.id).sort();
+  it("lists only assigned videos for each narrator", async () => {
+    const a = (await listVideos({ assignedToUserId: ids.narrA }))
+      .map((v) => v.id)
+      .sort();
+    const b = (await listVideos({ assignedToUserId: ids.narrB }))
+      .map((v) => v.id)
+      .sort();
+    const c = (await listVideos({ assignedToUserId: ids.narrC }))
+      .map((v) => v.id)
+      .sort();
     expect(a).toEqual([ids.v1, ids.v2].sort());
     expect(b).toEqual([ids.v2, ids.v3].sort());
     expect(c).toEqual([ids.v4]);
   });
 
-  it("allows shared video access without mixing identities", () => {
-    expect(userHasVideoAccess(ids.narrA, ids.v2)).toBe(true);
-    expect(userHasVideoAccess(ids.narrB, ids.v2)).toBe(true);
-    expect(userHasVideoAccess(ids.narrC, ids.v2)).toBe(false);
+  it("allows shared video access without mixing identities", async () => {
+    expect(await userHasVideoAccess(ids.narrA, ids.v2)).toBe(true);
+    expect(await userHasVideoAccess(ids.narrB, ids.v2)).toBe(true);
+    expect(await userHasVideoAccess(ids.narrC, ids.v2)).toBe(false);
   });
 
-  it("blocks unassigned video access via canAccessVideo", () => {
+  it("blocks unassigned video access via canAccessVideo", async () => {
     const narrA = {
       id: ids.narrA,
       email: "narr-a@example.com",
       display_name: "Narrator A",
       role: "narrator" as const,
     };
-    expect(canAccessVideo(narrA, ids.v1)).toBe(true);
-    expect(canAccessVideo(narrA, ids.v3)).toBe(false);
-    expect(canAccessVideo(narrA, ids.v4)).toBe(false);
+    expect(await canAccessVideo(narrA, ids.v1)).toBe(true);
+    expect(await canAccessVideo(narrA, ids.v3)).toBe(false);
+    expect(await canAccessVideo(narrA, ids.v4)).toBe(false);
   });
 
-  it("lets both admins see the full shared library", () => {
+  it("lets both admins see the full shared library", async () => {
     const adminA = {
       id: ids.adminA,
       email: "admin-a@example.com",
@@ -178,9 +185,9 @@ describe("assignment isolation matrix", () => {
     };
     expect(isAdmin(adminA)).toBe(true);
     expect(isAdmin(adminB)).toBe(true);
-    expect(canAccessVideo(adminA, ids.v4)).toBe(true);
-    expect(canAccessVideo(adminB, ids.v1)).toBe(true);
-    expect(listVideos({}).map((v) => v.id).sort()).toEqual(
+    expect(await canAccessVideo(adminA, ids.v4)).toBe(true);
+    expect(await canAccessVideo(adminB, ids.v1)).toBe(true);
+    expect((await listVideos({})).map((v) => v.id).sort()).toEqual(
       [ids.v1, ids.v2, ids.v3, ids.v4].sort()
     );
   });

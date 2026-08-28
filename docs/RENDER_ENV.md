@@ -5,10 +5,11 @@ In Render → your Web Service → **Environment**, add/update these.
 ## Required app vars
 | Key | Value |
 | --- | --- |
-| `AUTH_SECRET` | long random string (keep existing if already set) |
+| `AUTH_SECRET` | long random string (**keep existing**; do not regenerate every deploy) |
+| `DATABASE_URL` | **Required.** Internal URL from your Render PostgreSQL database |
 | `NODE_VERSION` | `22` |
 | `STORAGE_BACKEND` | `local` |
-| `DATA_DIR` | `./data` (must live on a **persistent disk** on Render — see below) |
+| `DATA_DIR` | `./data` (media files only; accounts live in Postgres) |
 | `NEXT_PUBLIC_APP_NAME` | `Surgical Operative Note Lab` |
 | `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical operative note dictation` |
 | `MAX_VIDEO_BYTES` | `314572800` |
@@ -36,34 +37,19 @@ Without Resend, admins can still create invites and **copy the link** from the I
 
 ## After saving env vars
 1. **Manual Deploy** → **Deploy latest commit** (or wait for auto-deploy)
-2. Confirm the latest GitHub commit includes Google Drive sync code
-3. Save a narration on the live site and check the **Surgical Vision** Drive folder
+2. Open `/api/health` and confirm `"backend":"postgres"`
+3. Save a narration on the live site and check the Drive folder for audio/JSON
 
-## Required for durable logins + videos (critical)
+## Required for durable logins + invites (critical)
 
-Render **Free** web services wipe the local filesystem whenever the service sleeps or redeploys. That deletes local SQLite and uploads.
+**PostgreSQL via `DATABASE_URL` is required in production.** See [PERSISTENCE.md](./PERSISTENCE.md).
 
-### Option A — Google Drive backup (works on Free)
+Render Free web disks are ephemeral. SQLite under `./data` loses accounts and invite tokens on every redeploy. The app will **refuse to start in production without `DATABASE_URL`** (no silent SQLite fallback).
 
-With `GOOGLE_DRIVE_SYNC=true` and OAuth folder vars set, the app now:
+### Setup
+1. Create a Render PostgreSQL database
+2. Copy its **Internal Database URL** into the web service env as `DATABASE_URL`
+3. Keep a stable `AUTH_SECRET`
+4. Deploy and verify `/api/health`
 
-1. Backs up **SQLite** (`snl-app.db`) after signups, invites, uploads, and narrations
-2. Backs up **video files** (not only JSON metadata)
-3. Restores the database and missing media files when the server starts again
-
-Keep Drive credentials configured on Render. After the first successful signup/upload you should see `snl-app.db` and `video-…` files in the Drive folder.
-
-## Persistence (critical on Render Free)
-
-Render Free wipes local files on sleep/redeploy. This app mitigates that by backing up SQLite + media to Google Drive and restoring on boot.
-
-**Strongly recommended for research use:** upgrade to **Starter** (~$7/mo) and attach a disk:
-
-1. Render → `surgical-operative-note-lab` → **Settings** → change instance to **Starter** (requires billing card)
-2. **Disk** → Add disk
-   - Mount path: `/opt/render/project/src/data`
-   - Size: **5 GB** (or larger)
-3. Keep `DATA_DIR=./data`
-4. Redeploy, then sign up once more if the Free-tier DB was wiped
-
-Drive backup remains as a secondary safety net.
+Google Drive sync remains for **media + JSON files**, not as the source of truth for invite tokens.

@@ -19,7 +19,7 @@ export async function GET(
   await ensurePersistenceRestored();
 
   const { token } = await context.params;
-  const invite = getInviteByToken(token);
+  const invite = await getInviteByToken(token);
   if (!invite) return jsonError("Invitation not found", 404);
 
   const expired = new Date(invite.expires_at).getTime() < Date.now();

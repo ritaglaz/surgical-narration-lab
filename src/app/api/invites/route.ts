@@ -15,7 +15,7 @@ export async function GET() {
   if (!user) return jsonError("Authentication required", 401);
   if (!isAdmin(user)) return jsonError("Admin access required", 403);
   return NextResponse.json({
-    invites: listInvites().map(toPublicInvite),
+    invites: (await listInvites()).map(toPublicInvite),
     emailConfigured: isEmailConfigured(),
   });
 }
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   for (const id of video_ids) {
-    if (!getVideoById(id)) {
+    if (!(await getVideoById(id))) {
       return jsonError(`Video not found: ${id}`, 404);
     }
   }
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   const expires = new Date();
   expires.setDate(expires.getDate() + INVITE_EXPIRY_DAYS);
 
-  const invite = createInvite({
+  const invite = await createInvite({
     id: randomUUID(),
     email,
     display_name,

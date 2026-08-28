@@ -5,8 +5,8 @@ import path from "path";
 import { Readable } from "stream";
 import { DICTATION_PROMPT, getDataDir } from "./config";
 import {
-  getDb,
   closeDbForRestore,
+  getDbBackend,
   getDbStats,
   getProfileById,
   getVideoById,
@@ -294,6 +294,9 @@ function localDbHasUserData(file: string): boolean {
 let restorePromise: Promise<void> | null = null;
 
 export function ensurePersistenceRestored(): Promise<void> {
+  if (getDbBackend() === "postgres") {
+    return Promise.resolve();
+  }
   if (!restorePromise) {
     restorePromise = restorePersistenceFromDrive().catch((err) => {
       console.error("[google-drive] restore failed:", err);
@@ -305,6 +308,9 @@ export function ensurePersistenceRestored(): Promise<void> {
 }
 
 export async function restorePersistenceFromDrive(): Promise<void> {
+  if (getDbBackend() !== "sqlite") {
+    return;
+  }
   if (!driveEnabled()) {
     console.warn(
       "[persistence] Google Drive sync is not configured — logins/videos will be lost on Render Free restarts. Set GOOGLE_DRIVE_* env vars or attach a persistent disk."
@@ -433,15 +439,16 @@ async function writeRemoteDbMeta(stats: Omit<DbMeta, "updated_at">) {
   });
 }
 
-/** Checkpoint WAL and upload app.db so accounts/invites survive Render sleep. */
+/** Upload app.db so accounts/invites survive Render sleep (sqlite only). */
 export async function syncDatabaseToDrive(): Promise<void> {
   if (!driveEnabled()) return;
-  const db = getDb();
-  db.pragma("wal_checkpoint(TRUNCATE)");
+  if (getDbBackend() === "postgres") return; // accounts live in Postgres
+  if (getDbBackend() !== "sqlite") return;
+
   const localDb = dbPath();
   if (!fs.existsSync(localDb)) return;
 
-  const localStats = getDbStats();
+  const localStats = await getDbStats();
   const remoteMeta = await readRemoteDbMeta();
   if (
     remoteMeta &&
@@ -549,51 +556,53 @@ export async function ensureLocalFileFromDrive(
   return false;
 }
 
-function buildManifest() {
-  const videos = listVideos({});
+async function buildManifest() {
+  const videos = await listVideos({});
   return {
     exported_at: new Date().toISOString(),
     note: "SQLite (snl-app.db), videos, audio, and JSON metadata are synced for Free Render durability.",
-    videos: videos.map((v) => {
-      const narrations = listNarrationsForVideo(v.id).map((n) => ({
-        id: n.id,
-        user_id: n.user_id,
-        narrator_name: n.narrator_name,
-        narrator_email: n.narrator_email,
-        narration_mode: n.narration_mode,
-        status: n.status,
-        recording_duration: n.recording_duration,
-        video_start_timestamp: n.video_start_timestamp,
-        notes: n.notes,
-        audio_storage_path: n.audio_storage_path,
-        drive_audio_logical_name: n.audio_storage_path
-          ? `audio/${n.id}${path.extname(n.audio_storage_path) || ".webm"}`
-          : null,
-        created_at: n.created_at,
-        updated_at: n.updated_at,
-      }));
-      return {
-        id: v.id,
-        title: v.title,
-        procedure_type: v.procedure_type,
-        description: v.description,
-        case_id: v.case_id,
-        duration: v.duration,
-        uploaded_by: v.uploaded_by,
-        uploader_name: v.uploader_name,
-        video_storage_path: v.video_storage_path,
-        created_at: v.created_at,
-        narration_count: v.narration_count,
-        assignees: listAssigneesForVideo(v.id),
-        narrations,
-      };
-    }),
+    videos: await Promise.all(
+      videos.map(async (v) => {
+        const narrations = (await listNarrationsForVideo(v.id)).map((n) => ({
+          id: n.id,
+          user_id: n.user_id,
+          narrator_name: n.narrator_name,
+          narrator_email: n.narrator_email,
+          narration_mode: n.narration_mode,
+          status: n.status,
+          recording_duration: n.recording_duration,
+          video_start_timestamp: n.video_start_timestamp,
+          notes: n.notes,
+          audio_storage_path: n.audio_storage_path,
+          drive_audio_logical_name: n.audio_storage_path
+            ? `audio/${n.id}${path.extname(n.audio_storage_path) || ".webm"}`
+            : null,
+          created_at: n.created_at,
+          updated_at: n.updated_at,
+        }));
+        return {
+          id: v.id,
+          title: v.title,
+          procedure_type: v.procedure_type,
+          description: v.description,
+          case_id: v.case_id,
+          duration: v.duration,
+          uploaded_by: v.uploaded_by,
+          uploader_name: v.uploader_name,
+          video_storage_path: v.video_storage_path,
+          created_at: v.created_at,
+          narration_count: v.narration_count,
+          assignees: await listAssigneesForVideo(v.id),
+          narrations,
+        };
+      })
+    ),
   };
 }
 
 export async function syncManifestToDrive(): Promise<void> {
   if (!driveEnabled()) return;
-  const manifest = buildManifest();
+  const manifest = await buildManifest();
   await upsertFile({
     logicalName: "manifest.json",
     filename: "manifest.json",
@@ -604,18 +613,20 @@ export async function syncManifestToDrive(): Promise<void> {
 
 export async function syncVideoMetadataToDrive(video: Video): Promise<void> {
   if (!driveEnabled()) return;
-  const uploader = getProfileById(video.uploaded_by);
-  const narrations = listNarrationsForVideo(video.id);
-  const assignees = listAssigneesForVideo(video.id);
+  const uploader = await getProfileById(video.uploaded_by);
+  const narrations = await listNarrationsForVideo(video.id);
+  const assignees = await listAssigneesForVideo(video.id);
   const payload = {
     ...video,
     uploader_email: uploader?.email || null,
     uploader_name: uploader?.display_name || null,
     assignees,
-    narrations: narrations.map((n) => ({
-      ...n,
-      narrator_role: getProfileById(n.user_id)?.role || null,
-    })),
+    narrations: await Promise.all(
+      narrations.map(async (n) => ({
+        ...n,
+        narrator_role: (await getProfileById(n.user_id))?.role || null,
+      }))
+    ),
     updated_at: new Date().toISOString(),
   };
   await upsertFile({
@@ -631,18 +642,18 @@ export async function syncNarrationToDrive(
   narration: Narration
 ): Promise<{ audioDriveId?: string }> {
   if (!driveEnabled()) {
-    updateNarration(narration.id, {
+    await updateNarration(narration.id, {
       drive_sync_status: "not_required",
       drive_synced_at: new Date().toISOString(),
     });
     return {};
   }
 
-  updateNarration(narration.id, { drive_sync_status: "pending" });
+  await updateNarration(narration.id, { drive_sync_status: "pending" });
 
   try {
-    const video = getVideoById(narration.video_id);
-    const narrator = getProfileById(narration.user_id);
+    const video = await getVideoById(narration.video_id);
+    const narrator = await getProfileById(narration.user_id);
     let audioDriveId: string | undefined;
 
     if (narration.audio_storage_path) {
@@ -705,7 +716,7 @@ export async function syncNarrationToDrive(
     if (video) await syncVideoMetadataToDrive(video);
     else await syncManifestToDrive();
 
-    updateNarration(narration.id, {
+    await updateNarration(narration.id, {
       drive_sync_status: "synced",
       drive_audio_file_id: audioDriveId || null,
       drive_synced_at: syncedAt,
@@ -714,7 +725,7 @@ export async function syncNarrationToDrive(
     await syncDatabaseToDrive();
     return { audioDriveId };
   } catch (err) {
-    updateNarration(narration.id, { drive_sync_status: "failed" });
+    await updateNarration(narration.id, { drive_sync_status: "failed" });
     throw err;
   }
 }

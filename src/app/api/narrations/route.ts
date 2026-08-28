@@ -13,7 +13,7 @@ import {
 import { extensionForMime } from "@/lib/format";
 import { isGoogleDriveConfigured } from "@/lib/google-drive";
 import { deleteFile, saveFile } from "@/lib/storage";
-import type { NarrationMode, NarrationStatus } from "@/lib/types";
+import type { Narration, NarrationMode, NarrationStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,13 +21,13 @@ export const maxDuration = 60;
 async function persistDriveSync(
   narrationId: string,
   requireDrive: boolean
-): Promise<{ ok: boolean; narration: ReturnType<typeof getNarrationById>; error?: string }> {
+): Promise<{ ok: boolean; narration: Narration | null; error?: string }> {
   const { syncNarrationToDrive } = await import("@/lib/google-drive");
-  const current = getNarrationById(narrationId);
+  const current = await getNarrationById(narrationId);
   if (!current) return { ok: false, narration: null, error: "Narration missing" };
 
   if (!isGoogleDriveConfigured()) {
-    const updated = updateNarration(narrationId, {
+    const updated = await updateNarration(narrationId, {
       drive_sync_status: "not_required",
       drive_synced_at: new Date().toISOString(),
     });
@@ -36,12 +36,12 @@ async function persistDriveSync(
 
   try {
     await syncNarrationToDrive(current);
-    return { ok: true, narration: getNarrationById(narrationId) };
+    return { ok: true, narration: await getNarrationById(narrationId) };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Google Drive sync failed";
     console.error("[narrations] drive sync failed:", message);
-    const failed = getNarrationById(narrationId);
+    const failed = await getNarrationById(narrationId);
     if (requireDrive) {
       return {
         ok: false,
@@ -96,16 +96,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const video = getVideoById(video_id);
+  const video = await getVideoById(video_id);
   if (!video) return jsonError("Video not found", 404);
-  if (!canAccessVideo(user, video_id)) {
+  if (!(await canAccessVideo(user, video_id))) {
     return jsonError("Not authorized to narrate this video", 403);
   }
 
   // Idempotency: reuse latest narration for this user+video if client omitted id
   // and that row was updated within the last 60s (double-click / retry).
   if (!existingId) {
-    const latest = getLatestNarrationForUserVideo(user.id, video_id);
+    const latest = await getLatestNarrationForUserVideo(user.id, video_id);
     if (latest) {
       const updatedMs = Date.parse(latest.updated_at + "Z") || Date.parse(latest.updated_at);
       if (Number.isFinite(updatedMs) && Date.now() - updatedMs < 60_000) {
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (existingId) {
-    const existing = getNarrationById(existingId);
+    const existing = await getNarrationById(existingId);
     if (!existing) return jsonError("Narration not found", 404);
     if (existing.user_id !== user.id && !isAdmin(user)) {
       return jsonError("Not authorized to update this narration", 403);
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const updated = updateNarration(existingId, {
+    const updated = await updateNarration(existingId, {
       audio_storage_path,
       recording_duration,
       video_start_timestamp: Number.isFinite(video_start_timestamp)
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
   const audio_storage_path = `audio/${user.id}/${video_id}/${id}${ext}`;
   await saveFile(audio_storage_path, audioBuffer!);
 
-  const created = createNarration({
+  const created = await createNarration({
     id,
     video_id,
     user_id: user.id,
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
     next_step,
     status,
   });
-  updateNarration(created.id, { drive_sync_status: "pending" });
+  await updateNarration(created.id, { drive_sync_status: "pending" });
 
   const sync = await persistDriveSync(
     created.id,

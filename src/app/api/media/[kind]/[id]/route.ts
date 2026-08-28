@@ -24,16 +24,16 @@ export async function GET(
   let storagePath: string | null = null;
 
   if (kind === "video") {
-    const video = getVideoById(id);
+    const video = await getVideoById(id);
     if (!video) return jsonError("Not found", 404);
-    if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
+    if (!(await canAccessVideo(user, id))) return jsonError("Not authorized", 403);
     storagePath = video.video_storage_path;
   } else if (kind === "audio") {
-    const narration = getNarrationById(id);
+    const narration = await getNarrationById(id);
     if (!narration || !narration.audio_storage_path) {
       return jsonError("Not found", 404);
     }
-    if (!canAccessVideo(user, narration.video_id)) {
+    if (!(await canAccessVideo(user, narration.video_id))) {
       return jsonError("Not authorized", 403);
     }
     if (!isAdmin(user) && narration.user_id !== user.id) {

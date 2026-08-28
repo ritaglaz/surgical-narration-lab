@@ -16,11 +16,11 @@ export async function GET(
   if (!user) return jsonError("Authentication required", 401);
 
   const { id } = await context.params;
-  const video = getVideoById(id);
+  const video = await getVideoById(id);
   if (!video) return jsonError("Video not found", 404);
-  if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
+  if (!(await canAccessVideo(user, id))) return jsonError("Not authorized", 403);
 
-  const allNarrations = listNarrationsForVideo(id);
+  const allNarrations = await listNarrationsForVideo(id);
   const admin = isAdmin(user);
   const narrations = admin
     ? allNarrations
@@ -29,7 +29,7 @@ export async function GET(
   return NextResponse.json({
     video,
     narrations,
-    assignees: admin ? listAssigneesForVideo(id) : undefined,
+    assignees: admin ? await listAssigneesForVideo(id) : undefined,
   });
 }
 
@@ -41,17 +41,17 @@ export async function PATCH(
   if (!user) return jsonError("Authentication required", 401);
 
   const { id } = await context.params;
-  const video = getVideoById(id);
+  const video = await getVideoById(id);
   if (!video) return jsonError("Video not found", 404);
-  if (!canAccessVideo(user, id)) return jsonError("Not authorized", 403);
+  if (!(await canAccessVideo(user, id))) return jsonError("Not authorized", 403);
 
   const body = await req.json();
   if (typeof body.duration === "number" && body.duration > 0) {
     // Narrators may fill in missing duration from the player; admins can always update.
     if (isAdmin(user) || video.duration == null) {
-      updateVideoDuration(id, body.duration);
+      await updateVideoDuration(id, body.duration);
     }
   }
 
-  return NextResponse.json({ video: getVideoById(id) });
+  return NextResponse.json({ video: await getVideoById(id) });
 }

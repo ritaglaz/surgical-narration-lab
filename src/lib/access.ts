@@ -8,7 +8,10 @@ export function isAdmin(user: SessionUser): boolean {
 }
 
 /** Admins can access all videos; narrators only assigned ones. */
-export function canAccessVideo(user: SessionUser, videoId: string): boolean {
+export async function canAccessVideo(
+  user: SessionUser,
+  videoId: string
+): Promise<boolean> {
   if (isAdmin(user)) return true;
   return userHasVideoAccess(user.id, videoId);
 }

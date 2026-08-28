@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (!user) return jsonError("Authentication required", 401);
 
   const { searchParams } = new URL(req.url);
-  const videos = listVideos({
+  const videos = await listVideos({
     search: searchParams.get("q") || undefined,
     procedure_type: searchParams.get("procedure") || undefined,
     status: searchParams.get("status") || undefined,
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     videos,
-    procedures: getDistinctProcedureTypes(),
+    procedures: await getDistinctProcedureTypes(),
   });
 }
 
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const video = createVideo({
+    const video = await createVideo({
       id,
       title,
       procedure_type,

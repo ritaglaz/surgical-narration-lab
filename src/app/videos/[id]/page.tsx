@@ -5,6 +5,8 @@ import { canAccessVideo, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { getVideoById, listNarrationsForVideo } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function VideoPage({
   params,
 }: {
@@ -14,11 +16,11 @@ export default async function VideoPage({
   if (!user) redirect("/login");
 
   const { id } = await params;
-  const video = getVideoById(id);
+  const video = await getVideoById(id);
   if (!video) notFound();
-  if (!canAccessVideo(user, id)) redirect("/dashboard");
+  if (!(await canAccessVideo(user, id))) redirect("/dashboard");
 
-  const allNarrations = listNarrationsForVideo(id);
+  const allNarrations = await listNarrationsForVideo(id);
   const narrations = isAdmin(user)
     ? allNarrations
     : allNarrations.filter((n) => n.user_id === user.id);

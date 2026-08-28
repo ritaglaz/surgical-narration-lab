@@ -3,9 +3,11 @@ import { Nav } from "@/components/Nav";
 import { InviteAdminClient } from "@/components/InviteAdminClient";
 import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { listInvites, listVideos } from "@/lib/db";
+import { listInvites, listVideos, getPersistenceLabel } from "@/lib/db";
 import { isEmailConfigured } from "@/lib/email";
 import { toPublicInvite } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminInvitesPage() {
   const user = await getSessionUser();
@@ -13,8 +15,9 @@ export default async function AdminInvitesPage() {
   if (!isAdmin(user)) redirect("/dashboard");
 
   // Shared library: all videos available for narrator invites.
-  const videos = listVideos({ userId: user.id });
-  const invites = listInvites().map(toPublicInvite);
+  const videos = await listVideos({ userId: user.id });
+  const invites = (await listInvites()).map(toPublicInvite);
+  const persistenceLabel = getPersistenceLabel();
 
   return (
     <div className="min-h-screen">
@@ -24,6 +27,7 @@ export default async function AdminInvitesPage() {
           videos={videos}
           initialInvites={invites}
           emailConfigured={isEmailConfigured()}
+          persistenceLabel={persistenceLabel}
         />
       </main>
     </div>

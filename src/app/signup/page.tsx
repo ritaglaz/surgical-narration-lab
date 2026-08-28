@@ -6,11 +6,13 @@ import { canBootstrapAdmin } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function SignupPage() {
   const user = await getSessionUser();
   if (user) redirect("/dashboard");
 
-  const bootstrap = canBootstrapAdmin();
+  const bootstrap = await canBootstrapAdmin();
   const allowlisted = hasAllowlistedAdmins();
 
   if (!bootstrap && !allowlisted) {
