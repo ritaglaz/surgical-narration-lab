@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const MAX_MB = 300;
+/** Keep in sync with server default in src/lib/config.ts (2 GB). */
+const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_MB || 2048);
 
 export function UploadForm() {
   const router = useRouter();
@@ -139,12 +140,11 @@ export function UploadForm() {
           onChange={(e) => onFileChange(e.target.files?.[0] || null)}
           className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-white"
         />
-        {file && (
-          <p className="text-sm text-slate-600">
-            {file.name} ({(file.size / (1024 * 1024)).toFixed(1)} MB)
-            {duration != null ? ` · ${duration.toFixed(1)}s` : ""}
-          </p>
-        )}
+        <p className="text-xs text-slate-500">
+          MP4, WebM, or MOV — up to {MAX_MB} MB
+          {file ? ` · selected ${(file.size / (1024 * 1024)).toFixed(1)} MB` : ""}
+          {duration != null ? ` · ${Math.round(duration)}s` : ""}
+        </p>
       </div>
 
       {loading && (
@@ -179,6 +179,7 @@ function uploadWithProgress(
     xhr.open("POST", "/api/videos");
     // Let the browser set multipart boundary. Do not set Content-Type manually.
     xhr.withCredentials = true;
+    xhr.timeout = 60 * 60 * 1000; // 60 minutes for large surgical videos
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         onProgress(Math.round((e.loaded / e.total) * 100));
@@ -201,6 +202,8 @@ function uploadWithProgress(
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.ontimeout = () =>
+      reject(new Error("Upload timed out. Try a smaller file or a faster connection."));
     xhr.send(form);
   });
 }

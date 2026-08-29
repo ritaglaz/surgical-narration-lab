@@ -10,9 +10,17 @@ export const APP_TAGLINE =
   process.env.NEXT_PUBLIC_APP_TAGLINE ||
   "Research platform for surgical operative note dictation";
 
-/** Max upload size for videos (bytes). Default 300 MB. */
+/** Max upload size for videos (bytes). Default 2 GB. */
 export const MAX_VIDEO_BYTES = Number(
-  process.env.MAX_VIDEO_BYTES || 300 * 1024 * 1024
+  process.env.MAX_VIDEO_BYTES ||
+    process.env.NEXT_PUBLIC_MAX_VIDEO_BYTES ||
+    2 * 1024 * 1024 * 1024
+);
+
+/** Human-readable MB cap for UI (derived from MAX_VIDEO_BYTES). */
+export const MAX_VIDEO_MB = Math.max(
+  1,
+  Math.round(MAX_VIDEO_BYTES / (1024 * 1024))
 );
 
 /** Max upload size for audio narrations (bytes). Default 100 MB. */

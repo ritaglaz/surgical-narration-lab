@@ -12,7 +12,8 @@ In Render → your Web Service → **Environment**, add/update these.
 | `DATA_DIR` | `./data` (media files only; accounts live in Postgres) |
 | `NEXT_PUBLIC_APP_NAME` | `Surgical Operative Note Lab` |
 | `NEXT_PUBLIC_APP_TAGLINE` | `Research platform for surgical operative note dictation` |
-| `MAX_VIDEO_BYTES` | `314572800` |
+| `MAX_VIDEO_BYTES` | `2147483648` (2 GB; raise if needed) |
+| `NEXT_PUBLIC_MAX_VIDEO_MB` | `2048` (must match client UI limit) |
 | `ADMIN_EMAILS` | `ritaglaz@buffalo.edu,pseger@buffalo.edu` |
 
 ## Google Drive sync (audio + JSON only)

@@ -12,10 +12,11 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     serverActions: {
-      bodySizeLimit: "550mb",
+      // Must be >= MAX_VIDEO_BYTES (default 2 GB)
+      bodySizeLimit: "2048mb",
     },
     // Allow large multipart uploads through Next's proxy/middleware layer
-    middlewareClientMaxBodySize: "550mb",
+    middlewareClientMaxBodySize: "2048mb",
   },
 };
 

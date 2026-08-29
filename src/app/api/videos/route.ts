@@ -14,8 +14,8 @@ import { deleteFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Allow longer uploads + Drive sync on hosted platforms */
-export const maxDuration = 300;
+/** Allow longer uploads + Drive sync on hosted platforms (large surgical videos). */
+export const maxDuration = 800;
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
