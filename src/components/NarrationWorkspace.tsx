@@ -73,6 +73,12 @@ export function NarrationWorkspace({
             (data && data.error) ||
               "Video file is missing from the server. An admin must re-upload this video."
           );
+        } else if (res.status === 503) {
+          const data = await res.json().catch(() => null);
+          setVideoError(
+            (data && data.error) ||
+              "Google Drive credentials expired. An admin must reconnect Drive, then refresh or re-upload the video."
+          );
         } else if (!res.ok && res.status !== 206 && res.status !== 200) {
           setVideoError(
             `Video could not be loaded (HTTP ${res.status}). Try refreshing, or ask an admin to re-upload.`

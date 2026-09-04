@@ -19,6 +19,28 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ kind: string; id: string }> }
 ) {
+  try {
+    return await serveMedia(req, context);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[media] unexpected failure:", message);
+    if (/invalid_grant/i.test(message)) {
+      return jsonError(
+        "Google Drive credentials expired. An admin must reconnect Drive, then refresh. If the video is still missing, re-upload it.",
+        503
+      );
+    }
+    return jsonError(
+      "Video/audio could not be loaded from the server. Try refreshing, or ask an admin to re-upload.",
+      500
+    );
+  }
+}
+
+async function serveMedia(
+  req: NextRequest,
+  context: { params: Promise<{ kind: string; id: string }> }
+) {
   const user = await getSessionUser();
   if (!user) return jsonError("Authentication required", 401);
 
@@ -55,23 +77,40 @@ export async function GET(
   }
 
   if (!fileExists(storagePath)) {
-    const { ensureLocalFileFromDrive } = await import("@/lib/google-drive");
-    const restored = await ensureLocalFileFromDrive(storagePath, {
-      id,
-      kind: kind === "audio" ? "audio" : "video",
-      driveFileId,
-    });
-    if (!restored) {
-      console.error("[media] file missing locally and not restored from Drive", {
-        kind,
+    try {
+      const { ensureLocalFileFromDrive } = await import("@/lib/google-drive");
+      const restored = await ensureLocalFileFromDrive(storagePath, {
         id,
-        storagePath,
+        kind: kind === "audio" ? "audio" : "video",
         driveFileId,
       });
+      if (!restored) {
+        console.error("[media] file missing locally and not restored from Drive", {
+          kind,
+          id,
+          storagePath,
+          driveFileId,
+        });
+        return jsonError(
+          kind === "video"
+            ? "Video file is missing from the server. An admin must re-upload this video (and wait for Google Drive sync)."
+            : "Audio file is missing from the server.",
+          404
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[media] Drive restore failed:", message);
+      if (/invalid_grant/i.test(message)) {
+        return jsonError(
+          "Google Drive credentials expired. An admin must reconnect Drive. If playback still fails, re-upload the video.",
+          503
+        );
+      }
       return jsonError(
         kind === "video"
-          ? "Video file is missing from the server. An admin must re-upload this video (and wait for Google Drive sync)."
-          : "Audio file is missing from the server.",
+          ? "Video file is missing from the server and could not be restored from Google Drive."
+          : "Audio file is missing and could not be restored from Google Drive.",
         404
       );
     }

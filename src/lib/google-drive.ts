@@ -563,7 +563,11 @@ export async function ensureLocalFileFromDrive(
   if (fileExists(storagePath)) return true;
   if (!driveEnabled()) return false;
 
-  await hydrateDriveIndexFromDrive();
+  try {
+    await hydrateDriveIndexFromDrive();
+  } catch (err) {
+    console.error("[google-drive] index hydrate failed:", err);
+  }
 
   const tried = new Set<string>();
   const tryDownload = async (fileId: string | undefined) => {
@@ -625,8 +629,19 @@ export async function ensureLocalFileFromDrive(
   for (const c of candidates) {
     // Never treat metadata JSON as the media bytes.
     if (c.filename.endsWith(".json")) continue;
-    const fileId = await resolveFileId(c.logical, c.filename);
-    if (await tryDownload(fileId)) return true;
+    try {
+      const fileId = await resolveFileId(c.logical, c.filename);
+      if (await tryDownload(fileId)) return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[google-drive] resolve/download candidate failed:", {
+        filename: c.filename,
+        message,
+      });
+      if (/invalid_grant/i.test(message)) {
+        throw err; // surface so media route can return a clear 503
+      }
+    }
   }
   return false;
 }
