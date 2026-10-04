@@ -55,16 +55,27 @@ export function NarrationWorkspace({
   const [narrations, setNarrations] = useState(initialNarrations);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [videoError, setVideoError] = useState("");
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
-  const videoSrc = `/api/media/video/${video.id}`;
+  const mediaPath = `/api/media/video/${video.id}`;
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    setVideoLoading(true);
+    setVideoError("");
+    setVideoSrc(null);
+
     (async () => {
       try {
-        const res = await fetch(videoSrc, {
+        // Warm/restore from Drive before attaching <video src>.
+        // After a Render restart this can take 30–120s for large cases.
+        const res = await fetch(`${mediaPath}?warm=${loadAttempt}`, {
           headers: { Range: "bytes=0-0" },
           credentials: "same-origin",
+          signal: controller.signal,
         });
         if (cancelled) return;
         if (res.status === 404) {
@@ -73,25 +84,42 @@ export function NarrationWorkspace({
             (data && data.error) ||
               "Video file is missing from the server. An admin must re-upload this video."
           );
-        } else if (res.status === 503) {
+          setVideoLoading(false);
+          return;
+        }
+        if (res.status === 503) {
           const data = await res.json().catch(() => null);
           setVideoError(
             (data && data.error) ||
               "Google Drive credentials expired. An admin must reconnect Drive, then refresh or re-upload the video."
           );
-        } else if (!res.ok && res.status !== 206 && res.status !== 200) {
+          setVideoLoading(false);
+          return;
+        }
+        if (!res.ok && res.status !== 206 && res.status !== 200) {
           setVideoError(
             `Video could not be loaded (HTTP ${res.status}). Try refreshing, or ask an admin to re-upload.`
           );
+          setVideoLoading(false);
+          return;
         }
-      } catch {
-        // Network errors are handled by the video element onError as well.
+        setVideoSrc(`${mediaPath}?v=${loadAttempt}`);
+        setVideoLoading(false);
+      } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === "AbortError")) {
+          return;
+        }
+        setVideoError(
+          "Timed out while restoring this video from Google Drive. Click Retry — large videos can take a couple of minutes after a server restart."
+        );
+        setVideoLoading(false);
       }
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [videoSrc]);
+  }, [mediaPath, loadAttempt]);
 
   useEffect(() => {
     return () => {
@@ -379,9 +407,25 @@ export function NarrationWorkspace({
         <p className="mt-2 whitespace-pre-wrap">{DICTATION_PROMPT}</p>
       </aside>
 
+      {videoLoading && (
+        <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-950">
+          Restoring this video from Google Drive… Large cases can take up to a
+          couple of minutes after a server restart. Please keep this tab open.
+        </div>
+      )}
       {videoError && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
           {videoError}{" "}
+          <button
+            type="button"
+            className="font-medium underline"
+            onClick={() => {
+              setVideoError("");
+              setLoadAttempt((n) => n + 1);
+            }}
+          >
+            Retry
+          </button>{" "}
           <button
             type="button"
             className="font-medium underline"
@@ -406,22 +450,22 @@ export function NarrationWorkspace({
         <div className="overflow-hidden rounded-lg border border-slate-300 bg-slate-950 shadow-sm">
           <video
             ref={videoRef}
-            src={videoSrc}
+            src={videoSrc ?? undefined}
             className="aspect-video w-full bg-black"
             onTimeUpdate={() =>
               setCurrentTime(videoRef.current?.currentTime || 0)
             }
             onLoadedMetadata={() => {
               setVideoError("");
+              setVideoLoading(false);
               void onLoadedMetadata();
             }}
-            onError={() =>
-              setVideoError((prev) =>
-                prev
-                  ? prev
-                  : "This video file could not be played. If it disappeared after a server restart, ask an admin to re-upload it (new uploads are backed up to Google Drive)."
-              )
-            }
+            onError={() => {
+              if (videoLoading || !videoSrc) return;
+              setVideoError(
+                "This video file could not be played. Click Retry to restore it from Google Drive, or ask an admin to re-upload it."
+              );
+            }}
             onEnded={onVideoEnded}
             playsInline
           />
