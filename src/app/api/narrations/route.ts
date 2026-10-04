@@ -16,7 +16,8 @@ import { deleteFile, saveFile } from "@/lib/storage";
 import type { Narration, NarrationMode, NarrationStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+/** Allow time for audio upload + Drive retries after submit. */
+export const maxDuration = 180;
 
 async function persistDriveSync(
   narrationId: string,
@@ -36,7 +37,21 @@ async function persistDriveSync(
 
   try {
     await syncNarrationToDrive(current);
-    return { ok: true, narration: await getNarrationById(narrationId) };
+    const synced = await getNarrationById(narrationId);
+    if (
+      requireDrive &&
+      synced &&
+      (synced.drive_sync_status !== "synced" ||
+        (synced.audio_storage_path && !synced.drive_audio_file_id))
+    ) {
+      return {
+        ok: false,
+        narration: synced,
+        error:
+          "Your recording was saved on the server, but Google Drive did not confirm the audio backup. Please try Submit again — do not close this tab.",
+      };
+    }
+    return { ok: true, narration: synced };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Google Drive sync failed";
@@ -48,8 +63,8 @@ async function persistDriveSync(
         ok: false,
         narration: failed,
         error: oauthBroken
-          ? "Your recording was saved, but Google Drive sync failed (OAuth token expired). An admin must reconnect Google Drive, then try Submit again."
-          : "Your recording was saved, but Google Drive sync failed. Please try Submit again.",
+          ? "Your recording was saved, but Google Drive sync failed (OAuth token expired). An admin must reconnect Google Drive, then try Submit again — keep this tab open."
+          : "Your recording was saved, but Google Drive sync failed. Please try Submit again — keep this tab open so the audio is not lost.",
       };
     }
     return { ok: true, narration: failed };

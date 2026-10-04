@@ -5,6 +5,9 @@ import { getNarrationById, getVideoById, updateNarration } from "@/lib/db";
 import { isGoogleDriveConfigured } from "@/lib/google-drive";
 import type { NarrationStatus } from "@/lib/types";
 
+export const runtime = "nodejs";
+export const maxDuration = 180;
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -70,13 +73,29 @@ export async function PATCH(
     try {
       const { syncNarrationToDrive } = await import("@/lib/google-drive");
       await syncNarrationToDrive(updated);
+      const synced = await getNarrationById(id);
+      if (
+        status === "submitted" &&
+        synced &&
+        (synced.drive_sync_status !== "synced" ||
+          (synced.audio_storage_path && !synced.drive_audio_file_id))
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Saved, but Google Drive did not confirm the audio backup. Please try again.",
+            narration: synced,
+          },
+          { status: 502 }
+        );
+      }
     } catch (err) {
       console.error("[narrations PATCH] drive sync failed:", err);
       if (status === "submitted") {
         return NextResponse.json(
           {
             error:
-              "Saved, but Google Drive sync failed. Please try again.",
+              "Saved, but Google Drive sync failed. Please try again — keep this tab open.",
             narration: await getNarrationById(id),
           },
           { status: 502 }

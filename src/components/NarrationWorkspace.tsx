@@ -338,19 +338,34 @@ export function NarrationWorkspace({
 
       const res = await fetch("/api/narrations", { method: "POST", body: form });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Save failed");
+      // Keep the server narration id even on Drive 502 so Retry re-uploads
+      // the same recording to Google Drive instead of creating a duplicate.
+      if (data?.narration?.id) {
+        setEditingId(data.narration.id);
+        if (data.narration.next_step) setNextStep(data.narration.next_step);
+      }
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            "Save failed. Keep this tab open and try Submit again."
+        );
+      }
 
-      setEditingId(data.narration.id);
-      if (data.narration.next_step) setNextStep(data.narration.next_step);
       const driveStatus = data.narration.drive_sync_status;
       if (status === "submitted") {
-        setMessage(
-          driveStatus === "failed"
-            ? "Saved, but Drive sync failed — please submit again."
-            : driveStatus === "synced" || driveStatus === "not_required"
-              ? "Dictation submitted and saved. Thank you."
-              : "Dictation submitted. Thank you."
-        );
+        if (
+          driveStatus === "synced" ||
+          driveStatus === "not_required"
+        ) {
+          setMessage(
+            "Dictation submitted and backed up to Google Drive. Thank you."
+          );
+          setTimeout(() => setShowDictation(false), 1200);
+        } else {
+          setError(
+            "Saved on the server, but Google Drive backup is not confirmed. Please click Submit again — keep this tab open."
+          );
+        }
       } else {
         setMessage("Draft saved. You can return later to continue.");
       }
@@ -358,10 +373,6 @@ export function NarrationWorkspace({
       const refresh = await fetch(`/api/videos/${video.id}`);
       const refreshed = await refresh.json();
       if (refresh.ok) setNarrations(refreshed.narrations);
-
-      if (status === "submitted") {
-        setTimeout(() => setShowDictation(false), 1200);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {

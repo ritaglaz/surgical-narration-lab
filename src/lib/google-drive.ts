@@ -57,6 +57,31 @@ export function isGoogleDriveConfigured(): boolean {
   return driveEnabled();
 }
 
+/** Lightweight auth + folder access check for operators. */
+export async function probeGoogleDrive(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  if (!driveEnabled()) {
+    return { ok: false, error: "Google Drive sync is not configured" };
+  }
+  try {
+    const drive = await getDrive();
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID!;
+    await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      pageSize: 1,
+      fields: "files(id)",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
 function loadServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (raw) {
@@ -728,6 +753,34 @@ export async function syncVideoMetadataToDrive(video: Video): Promise<void> {
   await syncManifestToDrive();
 }
 
+async function withRetries<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempts = 3
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const message = err instanceof Error ? err.message : String(err);
+      // OAuth breakage will not recover with retries in-process.
+      if (/invalid_grant/i.test(message)) throw err;
+      console.error(
+        `[google-drive] ${label} attempt ${i}/${attempts} failed:`,
+        message
+      );
+      if (i < attempts) {
+        await new Promise((r) => setTimeout(r, 500 * i));
+      }
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(`${label} failed after ${attempts} attempts`);
+}
+
 export async function syncNarrationToDrive(
   narration: Narration
 ): Promise<{ audioDriveId?: string }> {
@@ -762,55 +815,62 @@ export async function syncNarrationToDrive(
             : ext === ".m4a" || ext === ".mp4"
               ? "audio/mp4"
               : "audio/webm";
-      audioDriveId = await upsertFile({
-        logicalName: `audio/${narration.id}${ext}`,
-        filename: `narration-${narration.id}${ext}`,
-        mimeType: mime,
-        body: fs.createReadStream(abs),
-        filePath: abs,
-      });
-      const index = readIndex();
-      if (audioDriveId) {
-        index[mediaLogicalName(narration.audio_storage_path)] = audioDriveId;
-        writeIndex(index);
+      audioDriveId = await withRetries(`audio upload ${narration.id}`, () =>
+        upsertFile({
+          logicalName: `audio/${narration.id}${ext}`,
+          filename: `narration-${narration.id}${ext}`,
+          mimeType: mime,
+          body: fs.createReadStream(abs),
+          filePath: abs,
+        })
+      );
+      if (!audioDriveId) {
+        throw new Error(
+          `Audio upload to Google Drive returned no file id for narration ${narration.id}`
+        );
       }
+      const index = readIndex();
+      index[mediaLogicalName(narration.audio_storage_path)] = audioDriveId;
+      writeIndex(index);
     }
 
     const syncedAt = new Date().toISOString();
-    await upsertFile({
-      logicalName: `narrations/${narration.id}.json`,
-      filename: `narration-${narration.id}.json`,
-      mimeType: "application/json",
-      body: JSON.stringify(
-        {
-          submission_id: narration.id,
-          narration_id: narration.id,
-          ...narration,
-          dictation_prompt: DICTATION_PROMPT,
-          narrator_name: narrator?.display_name || null,
-          narrator_email: narrator?.email || null,
-          narrator_role: narrator?.role || null,
-          narrator_user_id: narration.user_id,
-          video_id: narration.video_id,
-          video_title: video?.title || null,
-          video_procedure_type: video?.procedure_type || null,
-          video_case_id: video?.case_id || null,
-          next_step: narration.next_step || null,
-          drive_audio_file_id: audioDriveId || null,
-          audio_filename: audioDriveId
-            ? `narration-${narration.id}${path.extname(narration.audio_storage_path || "") || ".webm"}`
-            : null,
-          synced_at: syncedAt,
-          submitted_at:
-            narration.status === "submitted" ? narration.updated_at : null,
-        },
-        null,
-        2
-      ),
-    });
+    await withRetries(`narration JSON upload ${narration.id}`, () =>
+      upsertFile({
+        logicalName: `narrations/${narration.id}.json`,
+        filename: `narration-${narration.id}.json`,
+        mimeType: "application/json",
+        body: JSON.stringify(
+          {
+            submission_id: narration.id,
+            narration_id: narration.id,
+            ...narration,
+            dictation_prompt: DICTATION_PROMPT,
+            narrator_name: narrator?.display_name || null,
+            narrator_email: narrator?.email || null,
+            narrator_role: narrator?.role || null,
+            narrator_user_id: narration.user_id,
+            video_id: narration.video_id,
+            video_title: video?.title || null,
+            video_procedure_type: video?.procedure_type || null,
+            video_case_id: video?.case_id || null,
+            next_step: narration.next_step || null,
+            drive_audio_file_id: audioDriveId || null,
+            audio_filename: audioDriveId
+              ? `narration-${narration.id}${path.extname(narration.audio_storage_path || "") || ".webm"}`
+              : null,
+            synced_at: syncedAt,
+            submitted_at:
+              narration.status === "submitted" ? narration.updated_at : null,
+          },
+          null,
+          2
+        ),
+      })
+    );
 
-    // Mark submission synced as soon as audio + narration JSON are on Drive.
-    // Manifest/video metadata are best-effort and must not fail the submit UX.
+    // Mark synced only after audio (+ JSON) are on Drive.
+    // Manifest / DB backup are best-effort and must not undo a successful upload.
     await updateNarration(narration.id, {
       drive_sync_status: "synced",
       drive_audio_file_id: audioDriveId || null,
@@ -827,7 +887,14 @@ export async function syncNarrationToDrive(
       );
     }
 
-    await syncDatabaseToDrive();
+    try {
+      await syncDatabaseToDrive();
+    } catch (dbErr) {
+      console.error(
+        "[google-drive] narration uploaded, but database backup sync failed:",
+        dbErr
+      );
+    }
     return { audioDriveId };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
